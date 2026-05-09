@@ -1,6 +1,5 @@
 {
   "cleanUrls": true,
-  "framework": "expo",
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
