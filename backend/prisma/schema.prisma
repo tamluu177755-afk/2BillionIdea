@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String              @id @default(uuid())
+  phoneNumber        String              @unique
+  name               String
+  role               String              @default("ELDER") // ELDER | CAREGIVER
+  elderProfile       ElderProfile?
+  caregiverRelations CaregiverRelation[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+}
+
+model ElderProfile {
+  id          String       @id @default(uuid())
+  userId      String       @unique
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  age         Int?
+  gender      String?
+  height      Float?
+  weight      Float?
+  conditions  String       @default("[]")
+  vitals      VitalRecord[]
+  medications Medication[]
+  sosEvents   SosEvent[]
+}
+
+model CaregiverRelation {
+  id          String @id @default(uuid())
+  elderId     String
+  caregiverId String
+  caregiver   User   @relation(fields: [caregiverId], references: [id], onDelete: Cascade)
+  relation    String
+
+  @@unique([elderId, caregiverId])
+}
+
+model VitalRecord {
+  id             String       @id @default(uuid())
+  elderProfileId String
+  elderProfile   ElderProfile @relation(fields: [elderProfileId], references: [id], onDelete: Cascade)
+  type           String       // BLOOD_PRESSURE | HEART_RATE | BLOOD_SUGAR | WEIGHT
+  value          String
+  recordedAt     DateTime     @default(now())
+}
+
+model Medication {
+  id             String       @id @default(uuid())
+  elderProfileId String
+  elderProfile   ElderProfile @relation(fields: [elderProfileId], references: [id], onDelete: Cascade)
+  name           String
+  dosage         String
+  time           String       // e.g. "08:00"
+  period         String       @default("MORNING") // MORNING | NOON | EVENING
+  status         String       @default("PENDING") // PENDING | TAKEN | SKIPPED
+  imageUrl       String?
+  taken          Boolean      @default(false)
+  date           String       // YYYY-MM-DD
+}
+
+model SosEvent {
+  id             String       @id @default(uuid())
+  elderProfileId String
+  elderProfile   ElderProfile @relation(fields: [elderProfileId], references: [id], onDelete: Cascade)
+  status         String       @default("ACTIVE") // ACTIVE | CANCELLED | RESOLVED
+  locationLat    Float?
+  locationLng    Float?
+  locationAddr   String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}

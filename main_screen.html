@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+
+<html class="light" lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#ec5b13",
+                        "background-light": "#f8f6f6",
+                        "background-dark": "#221610",
+                        "emergency": "#dc2626",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<title>CareConnect - Dashboard</title>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen pb-24">
+<!-- Header / Branding -->
+<header class="flex items-center justify-between p-6 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
+<div class="flex items-center gap-3">
+<div class="bg-primary/10 p-2 rounded-lg text-primary">
+<span class="material-symbols-outlined text-3xl font-bold">diversity_3</span>
+</div>
+<h2 class="text-2xl font-extrabold tracking-tight">CareConnect</h2>
+</div>
+<button class="relative p-2 text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined text-3xl">notifications</span>
+<span class="absolute top-2 right-2 flex h-3 w-3">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-3 w-3 bg-primary border-2 border-white"></span>
+</span>
+</button>
+</header>
+<main class="max-w-md mx-auto p-5 space-y-6">
+<!-- Large Greeting -->
+<section class="py-4">
+<h1 class="text-4xl font-extrabold text-slate-900 dark:text-white mb-2">Chào ông/bà!</h1>
+<p class="text-xl text-slate-600 dark:text-slate-400 font-medium">Hôm nay ông/bà thấy thế nào?</p>
+</section>
+<!-- SOS Emergency Button - Critical Visibility -->
+<section>
+<button class="w-full bg-emergency hover:bg-red-700 text-white rounded-xl p-8 flex flex-col items-center justify-center gap-4 shadow-xl active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-7xl font-bold">sos</span>
+<span class="text-3xl font-black uppercase tracking-widest">GỌI KHẨN CẤP</span>
+</button>
+</section>
+<!-- Health Summary Cards -->
+<section class="grid grid-cols-2 gap-4">
+<!-- Heart Rate -->
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border-2 border-slate-100 dark:border-slate-800 shadow-sm">
+<div class="flex items-center gap-2 text-red-500 mb-2">
+<span class="material-symbols-outlined text-3xl font-bold">favorite</span>
+<span class="text-lg font-bold">Tim</span>
+</div>
+<div class="flex items-baseline gap-1">
+<span class="text-5xl font-black text-slate-900 dark:text-white">72</span>
+<span class="text-slate-500 font-bold">BPM</span>
+</div>
+<p class="text-sm font-semibold text-emerald-600 mt-2 flex items-center gap-1">
+<span class="material-symbols-outlined text-base">check_circle</span> Bình thường
+                </p>
+</div>
+<!-- Blood Pressure -->
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border-2 border-slate-100 dark:border-slate-800 shadow-sm">
+<div class="flex items-center gap-2 text-blue-500 mb-2">
+<span class="material-symbols-outlined text-3xl font-bold">blood_pressure</span>
+<span class="text-lg font-bold">Huyết áp</span>
+</div>
+<div class="flex items-baseline gap-1">
+<span class="text-4xl font-black text-slate-900 dark:text-white">120/80</span>
+</div>
+<p class="text-sm font-semibold text-emerald-600 mt-2 flex items-center gap-1">
+<span class="material-symbols-outlined text-base">check_circle</span> Tốt
+                </p>
+</div>
+</section>
+<!-- Medicine Section -->
+<section class="bg-primary/10 border-2 border-primary/30 p-6 rounded-xl space-y-4">
+<div class="flex items-center justify-between">
+<h3 class="text-2xl font-bold flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-3xl">pill</span>
+                    Thuốc tiếp theo
+                </h3>
+</div>
+<div class="bg-white dark:bg-slate-900 p-5 rounded-lg shadow-sm flex items-center justify-between">
+<div>
+<p class="text-2xl font-extrabold text-slate-900 dark:text-white">Thuốc huyết áp</p>
+<p class="text-xl font-bold text-primary">Lúc 8:00 AM</p>
+</div>
+<div class="text-slate-400">
+<span class="material-symbols-outlined text-4xl">schedule</span>
+</div>
+</div>
+<button class="w-full bg-primary hover:bg-primary/90 text-white text-2xl font-black py-6 rounded-xl flex items-center justify-center gap-3 shadow-lg">
+<span class="material-symbols-outlined text-4xl font-bold">done_all</span>
+                ĐÃ UỐNG
+            </button>
+</section>
+<!-- Additional Status List -->
+<section class="bg-white dark:bg-slate-900 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800">
+<div class="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/50">
+<span class="font-bold text-lg">Thông tin khác</span>
+<span class="material-symbols-outlined">chevron_right</span>
+</div>
+<div class="divide-y divide-slate-100 dark:divide-slate-800">
+<div class="p-5 flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600">
+<span class="material-symbols-outlined text-3xl">water_drop</span>
+</div>
+<div>
+<p class="font-bold text-xl">Uống nước</p>
+<p class="text-slate-500">Đã uống 1.2L / 2L</p>
+</div>
+</div>
+<div class="p-5 flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-600">
+<span class="material-symbols-outlined text-3xl">directions_walk</span>
+</div>
+<div>
+<p class="font-bold text-xl">Vận động</p>
+<p class="text-slate-500">3,450 bước</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-6 pb-6 pt-3 flex justify-between items-center z-50">
+<a class="flex flex-col items-center gap-1 text-primary" href="#">
+<span class="material-symbols-outlined text-4xl font-fill">home</span>
+<span class="text-sm font-bold">Trang chủ</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400 dark:text-slate-500" href="#">
+<span class="material-symbols-outlined text-4xl">ecg_heart</span>
+<span class="text-sm font-bold">Sức khỏe</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400 dark:text-slate-500" href="#">
+<span class="material-symbols-outlined text-4xl">calendar_month</span>
+<span class="text-sm font-bold">Lịch hẹn</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400 dark:text-slate-500" href="#">
+<span class="material-symbols-outlined text-4xl">settings</span>
+<span class="text-sm font-bold">Cài đặt</span>
+</a>
+</nav>
+</body></html>
