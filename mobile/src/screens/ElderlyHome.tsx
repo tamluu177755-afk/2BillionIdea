@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Animated, Easing, Vibration
 } from 'react-native';
-import { SafeAreaView } from 'react-native-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
 import { getElderUser, triggerSos, confirmMedication } from '../services/api';
