@@ -1,55 +1,53 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Animated, Easing, Vibration
+  Animated, Easing, Vibration, Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
-import { getElderUser, triggerSos, confirmMedication } from '../services/api';
-import { useNavigation } from '@react-navigation/native';
+import { triggerSos, confirmMedication } from '../services/api';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
+import { useAppStore } from '../store/useAppStore';
 
 export const ElderlyHome = () => {
   const navigation = useNavigation<any>();
-  const [userData, setUserData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const sosTimer = useRef<any>(null);
+  const [loadingMed, setLoadingMed] = useState(false);
 
-  useEffect(() => {
-    loadData();
-    // SOS button pulse animation
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.08, duration: 1000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ])
-    ).start();
-  }, []);
+  // Get state from store
+  const {
+    elderUser,
+    isLoading,
+    initSocket,
+    loadElderUser,
+    setupSocketListeners,
+    removeSocketListeners
+  } = useAppStore();
 
-  const loadData = async () => {
-    try {
-      const data = await getElderUser();
-      setUserData(data);
-    } catch (e) {
-      console.error('Load error:', e);
-      setUserData({
-        name: 'Ông Minh',
-        elderProfile: {
-          id: 'fallback-id',
-          medications: [
-            { id: '1', name: 'Thuốc Huyết Áp', time: '08:00', dosage: '1 viên', period: 'MORNING', status: 'TAKEN' },
-            { id: '2', name: 'Thuốc Tiểu Đường', time: '12:00', dosage: '1 viên', period: 'NOON', status: 'PENDING' },
-            { id: '3', name: 'Thuốc Bổ Não', time: '20:00', dosage: '1 viên', period: 'EVENING', status: 'PENDING' }
-          ]
-        }
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  useFocusEffect(
+    React.useCallback(() => {
+      // Initialize socket and load data when screen comes into focus
+      initSocket();
+      loadElderUser();
+      setupSocketListeners();
+
+      // SOS button pulse animation
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.08, duration: 1000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 1000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        ])
+      ).start();
+
+      return () => {
+        removeSocketListeners();
+      };
+    }, [initSocket, loadElderUser, setupSocketListeners, removeSocketListeners])
+  );
 
   const handleSosPressIn = () => {
     Vibration.vibrate([0, 100], true);
@@ -67,26 +65,32 @@ export const ElderlyHome = () => {
 
   const handleSos = async () => {
     Vibration.vibrate(500);
-    navigation.navigate('SosSending', { elderName: userData?.name || 'Ông Minh' });
+    navigation.navigate('SosSending', { elderName: elderUser?.name || 'Ông Minh' });
     try {
-      if (userData?.elderProfile?.id) {
-        await triggerSos(userData.elderProfile.id, 'Vị trí hiện tại của ông');
+      if (elderUser?.elderProfile?.id) {
+        await triggerSos(elderUser.elderProfile.id, 'Vị trí hiện tại của ông');
       }
     } catch (e) {
+      Alert.alert('Lỗi SOS', 'Không thể gửi yêu cầu cứu trợ');
       console.log('SOS API error', e);
     }
   };
 
   const handleConfirmMed = async (medId: string) => {
+    setLoadingMed(true);
     try {
       await confirmMedication(medId);
-      loadData();
+      // Reload data to show updated status
+      await loadElderUser();
     } catch (e) {
+      Alert.alert('Lỗi', 'Không thể xác nhận uống thuốc');
       console.error('Confirm error', e);
+    } finally {
+      setLoadingMed(false);
     }
   };
 
-  const profile = userData?.elderProfile;
+  const profile = elderUser?.elderProfile;
   const meds = profile?.medications || [];
   const nextMed = meds.find((m: any) => m.status === 'PENDING');
   const takenCount = meds.filter((m: any) => m.status === 'TAKEN').length;
@@ -108,10 +112,10 @@ export const ElderlyHome = () => {
           </View>
           <View>
             <Text style={styles.greeting}>{getHourGreeting()}</Text>
-            <Text style={styles.name}>{userData?.name || 'Ông Minh'}</Text>
+            <Text style={styles.name}>{elderUser?.name || 'Ông Minh'}</Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.bellBtn} onPress={() => loadData()}>
+        <TouchableOpacity style={styles.bellBtn} onPress={() => loadElderUser()}>
           <Ionicons name="refresh-circle" size={40} color={theme.colors.primary} />
         </TouchableOpacity>
       </View>
@@ -145,10 +149,11 @@ export const ElderlyHome = () => {
               </View>
             </View>
             <Button 
-              title="ĐÃ UỐNG" 
+              title={loadingMed ? "Đang xử lý..." : "ĐÃ UỐNG"} 
               variant="success" 
               size="large" 
               onPress={() => handleConfirmMed(nextMed.id)}
+              disabled={loadingMed}
               style={styles.medBtn}
             />
           </Card>
@@ -166,11 +171,11 @@ export const ElderlyHome = () => {
 
       {/* Simplified Navigation */}
       <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('MedReminder')}>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('MedicationReminder')}>
           <MaterialIcons name="medication" size={32} color={theme.colors.primary} />
           <Text style={styles.navText}>Lịch thuốc</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('ElderProfile')}>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('ElderlyProfile')}>
           <MaterialIcons name="person" size={32} color={theme.colors.primary} />
           <Text style={styles.navText}>Hồ sơ</Text>
         </TouchableOpacity>

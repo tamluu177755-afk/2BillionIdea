@@ -27,9 +27,43 @@ app.get('/health', (_req, res) => {
 // ─── Get all users ───────────────────────────────────────────────────
 app.get('/api/users', async (_req, res) => {
   try {
-    const users = await prisma.user.findMany({ include: { elderProfile: true } });
+    // Keep this query lightweight and resilient; mobile only needs role + id here.
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        phoneNumber: true,
+        name: true,
+        role: true,
+        createdAt: true,
+        updatedAt: true,
+      }
+    });
     res.json(users);
   } catch (e) {
+    console.error('GET /api/users error:', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ─── Get default elder profile (fallback for mobile bootstrap) ──────
+app.get('/api/elder/default', async (_req, res) => {
+  try {
+    const elder = await prisma.user.findFirst({
+      where: { role: 'ELDER' },
+      include: {
+        elderProfile: {
+          include: {
+            vitals: { orderBy: { recordedAt: 'desc' }, take: 5 },
+            medications: { orderBy: { time: 'asc' } },
+            sosEvents: { where: { status: 'ACTIVE' } }
+          }
+        }
+      }
+    });
+    if (!elder) return res.status(404).json({ error: 'Elder not found' });
+    res.json(elder);
+  } catch (e) {
+    console.error('GET /api/elder/default error:', e);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -54,6 +88,7 @@ app.get('/api/elder/:id', async (req, res) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json(user);
   } catch (e) {
+    console.error('GET /api/elder/:id error:', e);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -71,6 +106,39 @@ app.get('/api/medications/:elderProfileId', async (req, res) => {
   }
 });
 
+// ─── Add medication for elder profile ───────────────────────────────
+app.post('/api/medications', async (req, res) => {
+  try {
+    const { elderProfileId, name, dosage, time, period, imageUrl } = req.body;
+    if (!elderProfileId || !name || !time) return res.status(400).json({ error: 'Missing required fields' });
+
+    // default date to today (YYYY-MM-DD)
+    const date = new Date().toISOString().slice(0, 10);
+
+    const med = await prisma.medication.create({
+      data: {
+        elderProfileId,
+        name,
+        dosage: dosage || '',
+        time,
+        period: period || 'MORNING',
+        imageUrl: imageUrl || null,
+        taken: false,
+        status: 'PENDING',
+        date
+      }
+    });
+
+    // Broadcast new medication to caregivers so UIs update
+    io.emit('medication_added', { medicationId: med.id, elderProfileId: med.elderProfileId, name: med.name, time: med.time });
+
+    res.status(201).json(med);
+  } catch (e) {
+    console.error('Add medication error', e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ─── Confirm medication taken ─────────────────────────────────────────
 app.patch('/api/medications/:id/confirm', async (req, res) => {
   try {
@@ -82,6 +150,36 @@ app.patch('/api/medications/:id/confirm', async (req, res) => {
     io.emit('medication_taken', { medicationId: med.id, elderProfileId: med.elderProfileId, name: med.name, time: new Date().toISOString() });
     res.json(med);
   } catch (e) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ─── Un-confirm medication (mark as not taken) ─────────────────────
+app.patch('/api/medications/:id/unconfirm', async (req, res) => {
+  try {
+    const med = await prisma.medication.update({
+      where: { id: req.params.id },
+      data: { status: 'PENDING', taken: false }
+    });
+    // Broadcast to caregiver
+    io.emit('medication_unconfirmed', { medicationId: med.id, elderProfileId: med.elderProfileId, name: med.name });
+    res.json(med);
+  } catch (e) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ─── Delete medication ─────────────────────────────────────────────
+app.delete('/api/medications/:id', async (req, res) => {
+  try {
+    const med = await prisma.medication.delete({
+      where: { id: req.params.id }
+    });
+    // Broadcast to caregiver
+    io.emit('medication_deleted', { medicationId: med.id, elderProfileId: med.elderProfileId, name: med.name });
+    res.json(med);
+  } catch (e) {
+    console.error('Delete medication error', e);
     res.status(500).json({ error: 'Server error' });
   }
 });

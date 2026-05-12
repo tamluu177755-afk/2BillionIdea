@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Image, ActivityIndicator, Dimensions
@@ -6,9 +6,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
-import { getElderUser, getSocket } from '../services/api';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Card } from '../components/Card';
+import { useAppStore } from '../store/useAppStore';
 
 const CAMERAS = [
   { label: 'Phòng khách', status: 'Bình thường', image: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=600' },
@@ -17,43 +17,67 @@ const CAMERAS = [
 
 export const CaregiverDashboard = () => {
   const navigation = useNavigation<any>();
-  const [userData, setUserData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('Bố');
   const [statusText, setStatusText] = useState('Đang hoạt động bình thường');
 
-  useEffect(() => {
-    loadData();
-    const sock = getSocket();
-    sock.on('medication_taken', (data: any) => {
-      setStatusText(`Vừa uống thuốc ${data.name} xong`);
-      loadData();
-    });
-    sock.on('sos_alert', (data: any) => {
-      navigation.navigate('SosAlert', { 
-        sosId: data.sosId, 
-        elderName: activeTab === 'Bố' ? 'Ông Minh' : 'Bà Lan', 
-        locationAddr: data.locationAddr, 
-        createdAt: data.createdAt 
-      });
-    });
-    return () => { sock.off('medication_taken'); sock.off('sos_alert'); };
-  }, [activeTab]);
+  const {
+    elderUser,
+    isLoading,
+    initSocket,
+    loadElderUser,
+    setupSocketListeners,
+    removeSocketListeners,
+    activeSos
+  } = useAppStore();
 
-  const loadData = async () => {
-    try {
-      const data = await getElderUser();
-      setUserData(data);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useFocusEffect(
+    useCallback(() => {
+      // Initialize socket and listeners
+      initSocket();
+      loadElderUser();
+      
+      // Set up real-time listeners
+      const socket = useAppStore.getState().socket;
+      if (socket) {
+        // Listen for medication taken
+        socket.off('medication_taken');
+        socket.on('medication_taken', (data: any) => {
+          setStatusText(`Vừa uống thuốc ${data.name} xong`);
+          loadElderUser();
+        });
 
-  const meds = userData?.elderProfile?.medications || [];
+        // Listen for SOS alert
+        socket.off('sos_alert');
+        socket.on('sos_alert', (data: any) => {
+          const elderName = activeTab === 'Bố' ? 'Ông Minh' : 'Bà Lan';
+          navigation.navigate('SosAlert', { 
+            sosId: data.sosId, 
+            elderName: elderName, 
+            locationAddr: data.locationAddr, 
+            createdAt: data.createdAt 
+          });
+        });
+      }
+
+      return () => {
+        removeSocketListeners();
+      };
+    }, [activeTab, initSocket, loadElderUser, setupSocketListeners, removeSocketListeners, navigation])
+  );
+
+  const meds = elderUser?.elderProfile?.medications || [];
   const takenCount = meds.filter((m: any) => m.status === 'TAKEN').length;
   const progress = meds.length > 0 ? (takenCount / meds.length) : 0;
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe}>

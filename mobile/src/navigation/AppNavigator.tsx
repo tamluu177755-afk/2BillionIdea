@@ -25,9 +25,9 @@ export const AppNavigator = () => {
 
         {/* Elderly Module */}
         <Stack.Screen name="ElderlyHome" component={ElderlyHome} />
-        <Stack.Screen name="MedReminder" component={MedicationReminder} />
+        <Stack.Screen name="MedicationReminder" component={MedicationReminder} />
         <Stack.Screen name="SosSending" component={SosSendingScreen} options={{ animation: 'fade' }} />
-        <Stack.Screen name="ElderProfile" component={ElderlyProfile} />
+        <Stack.Screen name="ElderlyProfile" component={ElderlyProfile} />
 
         {/* Caregiver Module */}
         <Stack.Screen name="CaregiverDashboard" component={CaregiverDashboard} />

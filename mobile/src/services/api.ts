@@ -30,13 +30,26 @@ export const getAllUsers = async () => {
 };
 
 export const getElderUser = async () => {
-  const users = await getAllUsers();
-  const elder = users.find((u: any) => u.role === 'ELDER');
-  if (elder) {
-    const r = await api.get(`/api/elder/${elder.id}`);
+  try {
+    const users = await getAllUsers();
+    const elder = users.find((u: any) => u.role === 'ELDER');
+    if (elder) {
+      const r = await api.get(`/api/elder/${elder.id}`);
+      return r.data;
+    }
+  } catch (e) {
+    // Fallback path: bootstrap from backend default elder endpoint.
+    const r = await api.get('/api/elder/default');
     return r.data;
   }
-  return null;
+
+  // If users endpoint works but no ELDER found, still try fallback.
+  try {
+    const r = await api.get('/api/elder/default');
+    return r.data;
+  } catch (_e) {
+    return null;
+  }
 };
 
 // ── Medications ───────────────────────────────────────────────────────
@@ -47,6 +60,21 @@ export const getTodayMedications = async (elderProfileId: string) => {
 
 export const confirmMedication = async (medicationId: string) => {
   const r = await api.patch(`/api/medications/${medicationId}/confirm`);
+  return r.data;
+};
+
+export const unconfirmMedication = async (medicationId: string) => {
+  const r = await api.patch(`/api/medications/${medicationId}/unconfirm`);
+  return r.data;
+};
+
+export const deleteMedication = async (medicationId: string) => {
+  const r = await api.delete(`/api/medications/${medicationId}`);
+  return r.data;
+};
+
+export const addMedication = async (payload: { elderProfileId: string; name: string; dosage?: string; time: string; period?: string; imageUrl?: string }) => {
+  const r = await api.post('/api/medications', payload);
   return r.data;
 };
 

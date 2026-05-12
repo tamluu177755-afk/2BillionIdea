@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Linking, Vibration, Animated
 } from 'react-native';
@@ -129,4 +129,4 @@ const styles = StyleSheet.create({
   resolveBtn: { marginTop: theme.spacing.m, alignItems: 'center', padding: theme.spacing.m },
   resolveText: { color: theme.colors.text.inverse, fontSize: 14, textDecorationLine: 'underline' },
 });
-import { useRef } from 'react'; // Fix missing import
+
