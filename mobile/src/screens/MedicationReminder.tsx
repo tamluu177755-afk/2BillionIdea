@@ -1,12 +1,12 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert, Modal, TextInput
+  ActivityIndicator, Alert, Modal, TextInput, Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
-import { confirmMedication, addMedication, getElderUser } from '../services/api';
+import { confirmMedication, unconfirmMedication, deleteMedication, addMedication, getElderUser } from '../services/api';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
@@ -23,6 +23,8 @@ export const MedicationReminder = () => {
   const [adding, setAdding] = useState(false);
   const [submitMessage, setSubmitMessage] = useState('');
   const [submitError, setSubmitError] = useState('');
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [medToDelete, setMedToDelete] = useState<any>(null);
   
   const {
     elderUser,
@@ -52,6 +54,38 @@ export const MedicationReminder = () => {
       await loadElderUser();
     } catch (e) {
       Alert.alert('Lỗi', 'Không thể xác nhận uống thuốc.');
+    } finally {
+      setLoadingMedId(null);
+    }
+  };
+
+  const handleUnconfirm = async (med: any) => {
+    setLoadingMedId(med.id);
+    try {
+      await unconfirmMedication(med.id);
+      await loadElderUser();
+    } catch (e) {
+      Alert.alert('Lỗi', 'Không thể hủy xác nhận uống thuốc.');
+    } finally {
+      setLoadingMedId(null);
+    }
+  };
+
+  const handleDelete = (med: any) => {
+    setMedToDelete(med);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!medToDelete) return;
+    setLoadingMedId(medToDelete.id);
+    try {
+      await deleteMedication(medToDelete.id);
+      await loadElderUser();
+      setShowDeleteModal(false);
+      setMedToDelete(null);
+    } catch (e) {
+      Alert.alert('Lỗi', 'Không thể xóa thuốc.');
     } finally {
       setLoadingMedId(null);
     }
@@ -190,12 +224,29 @@ export const MedicationReminder = () => {
                       <Text style={styles.medName}>{med.name}</Text>
                       <Text style={styles.medDosage}>{med.dosage}</Text>
                     </View>
-                    {med.status === 'TAKEN' && (
-                      <MaterialIcons name="check-circle" size={40} color={theme.colors.success} />
-                    )}
+                    <View style={styles.medActions}>
+                      <TouchableOpacity 
+                        onPress={() => handleDelete(med)}
+                        style={styles.deleteBtn}
+                      >
+                        <MaterialIcons name="delete-outline" size={28} color={theme.colors.error} />
+                      </TouchableOpacity>
+                      {med.status === 'TAKEN' && (
+                        <MaterialIcons name="check-circle" size={40} color={theme.colors.success} />
+                      )}
+                    </View>
                   </View>
                   
-                  {med.status !== 'TAKEN' && (
+                  {med.status === 'TAKEN' ? (
+                    <Button 
+                      title={loadingMedId === med.id ? "Đang xử lý..." : "HỦY XÁC NHẬN"} 
+                      variant="outline" 
+                      size="large"
+                      onPress={() => handleUnconfirm(med)}
+                      disabled={loadingMedId === med.id}
+                      style={styles.confirmBtn}
+                    />
+                  ) : (
                     <Button 
                       title={loadingMedId === med.id ? "Đang xử lý..." : "XÁC NHẬN ĐÃ UỐNG"} 
                       variant="success" 
@@ -287,6 +338,41 @@ export const MedicationReminder = () => {
           </View>
         </SafeAreaView>
       </Modal>
+
+      <Modal visible={showDeleteModal} animationType="fade" transparent>
+        <SafeAreaView style={styles.modalSafe}>
+          <View style={styles.modalBackdrop}>
+            <Card style={styles.modalCard}>
+              <View style={styles.deleteIconContainer}>
+                <MaterialIcons name="delete-forever" size={60} color={theme.colors.error} />
+              </View>
+              <Text style={styles.modalTitle}>Xóa thuốc?</Text>
+              <Text style={styles.deleteConfirmText}>
+                Bạn có chắc chắn muốn xóa thuốc <Text style={{ fontWeight: 'bold' }}>{medToDelete?.name}</Text> khỏi lịch không?
+              </Text>
+
+              <View style={styles.modalActions}>
+                <Button
+                  title={loadingMedId === medToDelete?.id ? 'Đang xóa...' : 'Xóa ngay'}
+                  variant="primary"
+                  onPress={confirmDelete}
+                  disabled={loadingMedId === medToDelete?.id}
+                  style={[styles.modalActionBtn, { backgroundColor: theme.colors.error }]}
+                />
+                <Button
+                  title="Hủy"
+                  variant="outline"
+                  onPress={() => {
+                    setShowDeleteModal(false);
+                    setMedToDelete(null);
+                  }}
+                  style={styles.modalActionBtn}
+                />
+              </View>
+            </Card>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -333,6 +419,8 @@ const styles = StyleSheet.create({
   medTime: { fontSize: theme.typography.elder.caption, fontWeight: 'bold', color: theme.colors.warning },
   medName: { fontSize: theme.typography.elder.header, fontWeight: 'bold', color: theme.colors.text.primary },
   medDosage: { fontSize: theme.typography.elder.body, color: theme.colors.text.secondary },
+  medActions: { alignItems: 'center', gap: theme.spacing.s },
+  deleteBtn: { padding: 4 },
   confirmBtn: { marginTop: theme.spacing.m },
   modalSafe: { flex: 1 },
   modalBackdrop: {
@@ -409,5 +497,16 @@ const styles = StyleSheet.create({
   },
   modalActionBtn: {
     flex: 1,
+  },
+  deleteIconContainer: {
+    alignItems: 'center',
+    marginBottom: theme.spacing.m,
+  },
+  deleteConfirmText: {
+    fontSize: theme.typography.elder.body,
+    color: theme.colors.text.primary,
+    textAlign: 'center',
+    marginBottom: theme.spacing.xl,
+    lineHeight: 24,
   },
 });

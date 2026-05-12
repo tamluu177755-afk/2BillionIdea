@@ -124,7 +124,7 @@ export const CaregiverDashboard = () => {
         {/* Med Progress Section */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Theo dõi thuốc</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('PlaceholderScreen')}>
+          <TouchableOpacity onPress={() => navigation.navigate('CaregiverMedicationDetail')}>
             <Text style={styles.sectionLink}>Xem chi tiết</Text>
           </TouchableOpacity>
         </View>

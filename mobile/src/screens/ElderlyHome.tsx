@@ -15,7 +15,6 @@ import { useAppStore } from '../store/useAppStore';
 export const ElderlyHome = () => {
   const navigation = useNavigation<any>();
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const sosTimer = useRef<any>(null);
   const [loadingMed, setLoadingMed] = useState(false);
 
   // Get state from store
@@ -48,20 +47,6 @@ export const ElderlyHome = () => {
       };
     }, [initSocket, loadElderUser, setupSocketListeners, removeSocketListeners])
   );
-
-  const handleSosPressIn = () => {
-    Vibration.vibrate([0, 100], true);
-    sosTimer.current = setTimeout(() => {
-      handleSos();
-    }, 2000);
-  };
-
-  const handleSosPressOut = () => {
-    Vibration.cancel();
-    if (sosTimer.current) {
-      clearTimeout(sosTimer.current);
-    }
-  };
 
   const handleSos = async () => {
     Vibration.vibrate(500);
@@ -128,14 +113,13 @@ export const ElderlyHome = () => {
           <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
             <TouchableOpacity 
               style={styles.sosBtn} 
-              onPressIn={handleSosPressIn}
-              onPressOut={handleSosPressOut}
+              onPress={handleSos}
               activeOpacity={0.7}
             >
               <Text style={styles.sosText}>SOS</Text>
             </TouchableOpacity>
           </Animated.View>
-          <Text style={styles.sosHint}>Nhấn giữ 2 giây để gọi cứu trợ</Text>
+          <Text style={styles.sosHint}>Nhấn để gọi cứu trợ khẩn cấp</Text>
         </View>
 
         {/* Quick Med Widget */}

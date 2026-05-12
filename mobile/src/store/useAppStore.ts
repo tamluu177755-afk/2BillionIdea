@@ -172,6 +172,24 @@ export const useAppStore = create<AppState>((set, get) => ({
         get().loadElderUser();
       }
     });
+
+    // Medication deleted -> refresh list
+    socket.off('medication_deleted');
+    socket.on('medication_deleted', (data: any) => {
+      const state = get();
+      if (state.elderUser?.elderProfile?.id === data.elderProfileId) {
+        get().loadElderUser();
+      }
+    });
+
+    // Medication unconfirmed -> refresh list
+    socket.off('medication_unconfirmed');
+    socket.on('medication_unconfirmed', (data: any) => {
+      const state = get();
+      if (state.elderUser?.elderProfile?.id === data.elderProfileId) {
+        get().loadElderUser();
+      }
+    });
   },
 
   removeSocketListeners: () => {
@@ -183,6 +201,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     socket.off('sos_cancelled');
     socket.off('vital_updated');
     socket.off('medication_added');
+    socket.off('medication_deleted');
+    socket.off('medication_unconfirmed');
   },
 
   updateMedication: (med: Medication) => {
