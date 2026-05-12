@@ -51,14 +51,6 @@ export const ElderlyHome = () => {
   const handleSos = async () => {
     Vibration.vibrate(500);
     navigation.navigate('SosSending', { elderName: elderUser?.name || 'Ông Minh' });
-    try {
-      if (elderUser?.elderProfile?.id) {
-        await triggerSos(elderUser.elderProfile.id, 'Vị trí hiện tại của ông');
-      }
-    } catch (e) {
-      Alert.alert('Lỗi SOS', 'Không thể gửi yêu cầu cứu trợ');
-      console.log('SOS API error', e);
-    }
   };
 
   const handleConfirmMed = async (medId: string) => {

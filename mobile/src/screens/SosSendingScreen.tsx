@@ -5,18 +5,22 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
-import { cancelSos } from '../services/api';
+import { cancelSos, triggerSos } from '../services/api';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { Button } from '../components/Button';
+import { useAppStore } from '../store/useAppStore';
 
 export const SosSendingScreen = () => {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
-  const { sosId, elderName } = route.params || {};
+  const { elderName } = route.params || {};
+  const [sosId, setSosId] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(3);
   const [isSent, setIsSent] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const timerRef = useRef<any>(null);
+
+  const { elderUser } = useAppStore();
 
   useEffect(() => {
     // Pulse animation
@@ -44,26 +48,38 @@ export const SosSendingScreen = () => {
     };
   }, []);
 
-  const triggerEmergency = () => {
+  const triggerEmergency = async () => {
     setIsSent(true);
     Vibration.vibrate([0, 500, 200, 500], true);
-    // 1. Call primary contact
+    
+    // 1. Send SOS signal to backend/caregiver AFTER countdown
+    try {
+      if (elderUser?.elderProfile?.id) {
+        const sos = await triggerSos(elderUser.elderProfile.id, 'Vị trí hiện tại của ông');
+        setSosId(sos.id);
+      }
+    } catch (e) {
+      console.log('SOS API error', e);
+    }
+
+    // 2. Call primary contact
     Linking.openURL('tel:0962664000').catch(() => {});
   };
 
   const handleCancel = async () => {
-    if (isSent) {
-      Alert.alert('Đã gửi cứu trợ', 'Tín hiệu đã được gửi tới người thân.');
-      return;
-    }
     Vibration.cancel();
     if (timerRef.current) clearInterval(timerRef.current);
     try {
-      if (sosId) await cancelSos(sosId);
+      if (sosId && !isSent) await cancelSos(sosId);
       navigation.goBack();
     } catch (e) {
       navigation.goBack();
     }
+  };
+
+  const handleReturnHome = () => {
+    Vibration.cancel();
+    navigation.navigate('ElderlyHome');
   };
 
   return (
@@ -105,9 +121,15 @@ export const SosSendingScreen = () => {
           <Text style={styles.cancelText}>HỦY (Nếu nhấn nhầm)</Text>
         </TouchableOpacity>
       ) : (
-        <View style={styles.sentBadge}>
-          <ActivityIndicator color={theme.colors.text.inverse} size="large" />
-          <Text style={styles.sentBadgeText}>Đang giữ kết nối...</Text>
+        <View style={styles.sentContainer}>
+          <View style={styles.sentBadge}>
+            <ActivityIndicator color={theme.colors.text.inverse} size="large" />
+            <Text style={styles.sentBadgeText}>Đang giữ kết nối...</Text>
+          </View>
+          
+          <TouchableOpacity style={styles.homeBtn} onPress={handleReturnHome}>
+            <Text style={styles.homeBtnText}>QUAY LẠI TRANG CHỦ</Text>
+          </TouchableOpacity>
         </View>
       )}
     </SafeAreaView>
@@ -159,6 +181,12 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.l, marginBottom: theme.spacing.xl 
   },
   cancelText: { fontSize: theme.typography.elder.body, fontWeight: 'bold', color: theme.colors.text.primary },
+  sentContainer: { width: '100%', alignItems: 'center', marginBottom: theme.spacing.xl },
   sentBadge: { alignItems: 'center', gap: 10, marginBottom: theme.spacing.xl },
   sentBadgeText: { fontSize: theme.typography.elder.body, color: theme.colors.text.inverse, fontWeight: 'bold' },
+  homeBtn: { 
+    backgroundColor: 'rgba(255,255,255,0.2)', paddingVertical: 18, paddingHorizontal: 40, 
+    borderRadius: theme.borderRadius.l, borderWidth: 2, borderColor: theme.colors.surface
+  },
+  homeBtnText: { fontSize: theme.typography.elder.body, fontWeight: 'bold', color: theme.colors.text.inverse },
 });

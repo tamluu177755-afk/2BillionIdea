@@ -1,7 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Image, ActivityIndicator, Dimensions
+  Image, ActivityIndicator, Dimensions, Animated, Easing
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
@@ -19,6 +19,8 @@ export const CaregiverDashboard = () => {
   const navigation = useNavigation<any>();
   const [activeTab, setActiveTab] = useState('Bố');
   const [statusText, setStatusText] = useState('Đang hoạt động bình thường');
+  const [sosAlertData, setSosAlertData] = useState<any>(null);
+  const flashAnim = useRef(new Animated.Value(0)).current;
 
   const {
     elderUser,
@@ -29,6 +31,19 @@ export const CaregiverDashboard = () => {
     removeSocketListeners,
     activeSos
   } = useAppStore();
+
+  useEffect(() => {
+    if (sosAlertData) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(flashAnim, { toValue: 1, duration: 500, easing: Easing.linear, useNativeDriver: false }),
+          Animated.timing(flashAnim, { toValue: 0, duration: 500, easing: Easing.linear, useNativeDriver: false }),
+        ])
+      ).start();
+    } else {
+      flashAnim.setValue(0);
+    }
+  }, [sosAlertData]);
 
   useFocusEffect(
     useCallback(() => {
@@ -50,12 +65,18 @@ export const CaregiverDashboard = () => {
         socket.off('sos_alert');
         socket.on('sos_alert', (data: any) => {
           const elderName = activeTab === 'Bố' ? 'Ông Minh' : 'Bà Lan';
-          navigation.navigate('SosAlert', { 
-            sosId: data.sosId, 
-            elderName: elderName, 
-            locationAddr: data.locationAddr, 
-            createdAt: data.createdAt 
-          });
+          setSosAlertData({ ...data, elderName });
+        });
+
+        // Listen for SOS resolution to clear alert
+        socket.off('sos_resolved');
+        socket.on('sos_resolved', () => {
+          setSosAlertData(null);
+        });
+
+        socket.off('sos_cancelled');
+        socket.on('sos_cancelled', () => {
+          setSosAlertData(null);
         });
       }
 
@@ -69,6 +90,11 @@ export const CaregiverDashboard = () => {
   const takenCount = meds.filter((m: any) => m.status === 'TAKEN').length;
   const progress = meds.length > 0 ? (takenCount / meds.length) : 0;
 
+  const backgroundColor = flashAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['rgba(255, 255, 255, 0)', 'rgba(255, 0, 0, 0.9)']
+  });
+
   if (isLoading) {
     return (
       <SafeAreaView style={styles.safe}>
@@ -81,6 +107,27 @@ export const CaregiverDashboard = () => {
 
   return (
     <SafeAreaView style={styles.safe}>
+      {sosAlertData && (
+        <Animated.View style={[styles.sosOverlay, { backgroundColor }]}>
+          <MaterialIcons name="report-problem" size={100} color="white" />
+          <Text style={styles.sosOverlayTitle}>CẢNH BÁO NGUY CẤP!</Text>
+          <Text style={styles.sosOverlayName}>{sosAlertData.elderName} ĐANG CẦN TRỢ GIÚP</Text>
+          <TouchableOpacity 
+            style={styles.sosOverlayBtn}
+            onPress={() => {
+              navigation.navigate('SosAlert', { 
+                sosId: sosAlertData.sosId, 
+                elderName: sosAlertData.elderName, 
+                locationAddr: sosAlertData.locationAddr, 
+                createdAt: sosAlertData.createdAt 
+              });
+              setSosAlertData(null);
+            }}
+          >
+            <Text style={styles.sosOverlayBtnText}>XEM VỊ TRÍ & HỖ TRỢ NGAY</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -223,4 +270,39 @@ const styles = StyleSheet.create({
   aiTagText: { fontSize: 10, fontWeight: 'bold', color: theme.colors.success },
   cameraLabel: { fontSize: 16, fontWeight: 'bold', color: theme.colors.text.inverse },
   expandBtn: { position: 'absolute', top: 12, right: 12, backgroundColor: 'rgba(0,0,0,0.4)', padding: 6, borderRadius: 8 },
+  sosOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 9999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing.xl,
+  },
+  sosOverlayTitle: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: 'white',
+    marginTop: theme.spacing.l,
+    textAlign: 'center',
+  },
+  sosOverlayName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: 'white',
+    marginTop: theme.spacing.m,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+  },
+  sosOverlayBtn: {
+    backgroundColor: 'white',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: theme.borderRadius.l,
+    marginTop: theme.spacing.xxl,
+    ...theme.shadow,
+  },
+  sosOverlayBtnText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FF0000',
+  },
 });
