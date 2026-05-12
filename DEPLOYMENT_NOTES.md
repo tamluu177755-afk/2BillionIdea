@@ -7,13 +7,12 @@ Dự án này đã được cấu hình để triển khai dễ dàng lên **Ren
 - **Service Type:** Web Service.
 - **Build Command:** `cd backend && npm install && npm run build`
 - **Start Command:** `cd backend && npm start`
+- **Lưu ý về Database:** 
+  - Tôi đã cấu hình lệnh `build` để **tự động** khởi tạo Database và nạp dữ liệu demo (`seed`) mỗi khi bạn deploy.
+  - Vì dùng SQLite, dữ liệu sẽ quay về trạng thái ban đầu mỗi khi server khởi động lại (rất phù hợp để demo).
 - **Environment Variables:**
-  - `DATABASE_URL`: `file:./prisma/dev.db` (Dùng SQLite cho demo)
+  - `DATABASE_URL`: `file:./prisma/dev.db`
   - `PORT`: `3000`
-- **Seed Data:** Sau khi deploy thành công, vào tab "Shell" trên Render và chạy:
-  ```bash
-  cd backend && npm run seed
-  ```
 
 ## 2. Triển khai Mobile Web (Vercel)
 - **Repo:** Đẩy cùng một repo lên GitHub.
