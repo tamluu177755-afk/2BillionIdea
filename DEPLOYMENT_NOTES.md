@@ -11,7 +11,6 @@ Dự án này đã được cấu hình để triển khai dễ dàng lên **Ren
   - Tôi đã cấu hình lệnh `build` để **tự động** khởi tạo Database và nạp dữ liệu demo (`seed`) mỗi khi bạn deploy.
   - Vì dùng SQLite, dữ liệu sẽ quay về trạng thái ban đầu mỗi khi server khởi động lại (rất phù hợp để demo).
 - **Environment Variables:**
-  - `DATABASE_URL`: `file:./prisma/dev.db`
   - `PORT`: `3000`
 
 ## 2. Triển khai Mobile Web (Vercel)

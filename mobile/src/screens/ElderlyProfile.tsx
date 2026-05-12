@@ -113,7 +113,7 @@ export const ElderlyProfile = () => {
               <Text style={[styles.rankText, { color: theme.colors.text.secondary }]}>2</Text>
             </View>
             <View style={styles.contactInfo}>
-              <Text style={styles.contactName}>Quang - Con trai</Text>
+              <Text style={styles.contactName}>Tuấn - Con trai</Text>
               <Text style={styles.contactPhone}>0912 345 678</Text>
             </View>
             <TouchableOpacity style={[styles.callIcon, { backgroundColor: theme.colors.neutral }]} onPress={() => handleCall('0912345678')}>
