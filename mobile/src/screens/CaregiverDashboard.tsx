@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Image, ActivityIndicator, Dimensions, Animated, Easing
 } from 'react-native';
+import { Audio } from 'expo-av';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
@@ -21,6 +22,7 @@ export const CaregiverDashboard = () => {
   const [statusText, setStatusText] = useState('Đang hoạt động bình thường');
   const [sosAlertData, setSosAlertData] = useState<any>(null);
   const flashAnim = useRef(new Animated.Value(0)).current;
+  const soundRef = useRef<Audio.Sound | null>(null);
 
   const {
     elderUser,
@@ -33,7 +35,29 @@ export const CaregiverDashboard = () => {
   } = useAppStore();
 
   useEffect(() => {
+    const playAlarm = async () => {
+      try {
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: 'https://assets.mixkit.co/active_storage/sfx/951/951-preview.mp3' },
+          { isLooping: true, volume: 1.0 }
+        );
+        soundRef.current = sound;
+        await sound.playAsync();
+      } catch (e) {
+        console.log('Error playing alarm', e);
+      }
+    };
+
+    const stopAlarm = async () => {
+      if (soundRef.current) {
+        await soundRef.current.stopAsync();
+        await soundRef.current.unloadAsync();
+        soundRef.current = null;
+      }
+    };
+
     if (sosAlertData) {
+      playAlarm();
       Animated.loop(
         Animated.sequence([
           Animated.timing(flashAnim, { toValue: 1, duration: 500, easing: Easing.linear, useNativeDriver: false }),
@@ -41,8 +65,13 @@ export const CaregiverDashboard = () => {
         ])
       ).start();
     } else {
+      stopAlarm();
       flashAnim.setValue(0);
     }
+
+    return () => {
+      stopAlarm();
+    };
   }, [sosAlertData]);
 
   useFocusEffect(
@@ -111,7 +140,8 @@ export const CaregiverDashboard = () => {
         <Animated.View style={[styles.sosOverlay, { backgroundColor }]}>
           <MaterialIcons name="report-problem" size={100} color="white" />
           <Text style={styles.sosOverlayTitle}>CẢNH BÁO NGUY CẤP!</Text>
-          <Text style={styles.sosOverlayName}>{sosAlertData.elderName} ĐANG CẦN TRỢ GIÚP</Text>
+          <Text style={styles.sosOverlayName}>{sosAlertData.elderName} CẦN GIÚP ĐỠ!</Text>
+          <Text style={styles.sosOverlaySub}>{sosAlertData.elderName} CẦN GIÚP ĐỠ! {sosAlertData.elderName} CẦN GIÚP ĐỠ!</Text>
           <TouchableOpacity 
             style={styles.sosOverlayBtn}
             onPress={() => {
@@ -291,6 +321,14 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.m,
     textAlign: 'center',
     textTransform: 'uppercase',
+  },
+  sosOverlaySub: {
+    fontSize: 16,
+    color: 'white',
+    marginTop: theme.spacing.s,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    opacity: 0.9,
   },
   sosOverlayBtn: {
     backgroundColor: 'white',

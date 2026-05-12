@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, Animated, TouchableOpacity, Alert, Easing, Linking, ActivityIndicator, Vibration
 } from 'react-native';
+import { Audio } from 'expo-av';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
@@ -19,10 +20,26 @@ export const SosSendingScreen = () => {
   const [isSent, setIsSent] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const timerRef = useRef<any>(null);
+  const soundRef = useRef<Audio.Sound | null>(null);
 
   const { elderUser } = useAppStore();
 
   useEffect(() => {
+    // Play alarm sound
+    const playAlarm = async () => {
+      try {
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: 'https://assets.mixkit.co/active_storage/sfx/951/951-preview.mp3' },
+          { isLooping: true, volume: 1.0 }
+        );
+        soundRef.current = sound;
+        await sound.playAsync();
+      } catch (e) {
+        console.log('Error playing alarm', e);
+      }
+    };
+    playAlarm();
+
     // Pulse animation
     Animated.loop(
       Animated.sequence([
@@ -45,6 +62,10 @@ export const SosSendingScreen = () => {
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      if (soundRef.current) {
+        soundRef.current.stopAsync();
+        soundRef.current.unloadAsync();
+      }
     };
   }, []);
 
@@ -67,6 +88,9 @@ export const SosSendingScreen = () => {
   };
 
   const handleCancel = async () => {
+    if (soundRef.current) {
+      await soundRef.current.stopAsync();
+    }
     Vibration.cancel();
     if (timerRef.current) clearInterval(timerRef.current);
     try {
@@ -77,7 +101,10 @@ export const SosSendingScreen = () => {
     }
   };
 
-  const handleReturnHome = () => {
+  const handleReturnHome = async () => {
+    if (soundRef.current) {
+      await soundRef.current.stopAsync();
+    }
     Vibration.cancel();
     navigation.navigate('ElderlyHome');
   };
