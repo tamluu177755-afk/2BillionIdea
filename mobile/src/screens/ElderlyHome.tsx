@@ -1,27 +1,30 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Animated, Easing, Alert
+  Animated, Easing, Vibration
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-area-context';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
-import { getElderUser, triggerSos } from '../services/api';
+import { getElderUser, triggerSos, confirmMedication } from '../services/api';
 import { useNavigation } from '@react-navigation/native';
+import { Card } from '../components/Card';
+import { Button } from '../components/Button';
 
 export const ElderlyHome = () => {
   const navigation = useNavigation<any>();
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const sosTimer = useRef<any>(null);
 
   useEffect(() => {
     loadData();
     // SOS button pulse animation
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.06, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1.08, duration: 1000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
       ])
     ).start();
   }, []);
@@ -32,15 +35,14 @@ export const ElderlyHome = () => {
       setUserData(data);
     } catch (e) {
       console.error('Load error:', e);
-      // Giữ giao diện hoạt động ngay cả khi mất mạng
       setUserData({
         name: 'Ông Minh',
         elderProfile: {
           id: 'fallback-id',
           medications: [
-            { id: '1', name: 'Thuốc Huyết Áp (Amlodipine)', time: '08:00', dosage: '1 viên', period: 'MORNING', status: 'TAKEN' },
-            { id: '2', name: 'Thuốc Tiểu Đường (Metformin)', time: '12:00', dosage: '1 viên', period: 'NOON', status: 'PENDING' },
-            { id: '3', name: 'Thuốc Bổ Não (Ginkgo)', time: '20:00', dosage: '1 viên', period: 'EVENING', status: 'PENDING' }
+            { id: '1', name: 'Thuốc Huyết Áp', time: '08:00', dosage: '1 viên', period: 'MORNING', status: 'TAKEN' },
+            { id: '2', name: 'Thuốc Tiểu Đường', time: '12:00', dosage: '1 viên', period: 'NOON', status: 'PENDING' },
+            { id: '3', name: 'Thuốc Bổ Não', time: '20:00', dosage: '1 viên', period: 'EVENING', status: 'PENDING' }
           ]
         }
       });
@@ -49,24 +51,45 @@ export const ElderlyHome = () => {
     }
   };
 
+  const handleSosPressIn = () => {
+    Vibration.vibrate([0, 100], true);
+    sosTimer.current = setTimeout(() => {
+      handleSos();
+    }, 2000);
+  };
+
+  const handleSosPressOut = () => {
+    Vibration.cancel();
+    if (sosTimer.current) {
+      clearTimeout(sosTimer.current);
+    }
+  };
+
   const handleSos = async () => {
-    // 1. CHUYỂN MÀN HÌNH VÀ GỌI NGAY LẬP TỨC (Không chờ mạng)
+    Vibration.vibrate(500);
     navigation.navigate('SosSending', { elderName: userData?.name || 'Ông Minh' });
-    
-    // 2. Chạy ngầm gửi cảnh báo qua mạng nếu có internet
     try {
       if (userData?.elderProfile?.id) {
-        await triggerSos(userData.elderProfile.id, '123 Đường Lê Lợi, Quận 1');
+        await triggerSos(userData.elderProfile.id, 'Vị trí hiện tại của ông');
       }
     } catch (e) {
-      console.log('Lỗi mạng, nhưng cuộc gọi native vẫn đang diễn ra', e);
+      console.log('SOS API error', e);
+    }
+  };
+
+  const handleConfirmMed = async (medId: string) => {
+    try {
+      await confirmMedication(medId);
+      loadData();
+    } catch (e) {
+      console.error('Confirm error', e);
     }
   };
 
   const profile = userData?.elderProfile;
   const meds = profile?.medications || [];
   const nextMed = meds.find((m: any) => m.status === 'PENDING');
-  const taken = meds.filter((m: any) => m.status === 'TAKEN').length;
+  const takenCount = meds.filter((m: any) => m.status === 'TAKEN').length;
 
   const getHourGreeting = () => {
     const h = new Date().getHours();
@@ -80,86 +103,76 @@ export const ElderlyHome = () => {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <View style={styles.avatar}>
-            <MaterialIcons name="person" size={22} color={theme.colors.white} />
+          <View style={[styles.avatar, { borderColor: nextMed ? theme.colors.warning : theme.colors.success }]}>
+            <MaterialIcons name="person" size={28} color={theme.colors.text.secondary} />
           </View>
           <View>
             <Text style={styles.greeting}>{getHourGreeting()}</Text>
             <Text style={styles.name}>{userData?.name || 'Ông Minh'}</Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.bellBtn}>
-          <Ionicons name="notifications-outline" size={26} color={theme.colors.textMedium} />
-          <View style={styles.bellDot} />
+        <TouchableOpacity style={styles.bellBtn} onPress={() => loadData()}>
+          <Ionicons name="refresh-circle" size={40} color={theme.colors.primary} />
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        {/* Question */}
         <Text style={styles.question}>Hôm nay ông{'\n'}thấy thế nào?</Text>
 
-        {/* SOS Button */}
-        <Animated.View style={[styles.sosShadow, { transform: [{ scale: pulseAnim }] }]}>
-          <TouchableOpacity style={styles.sosBtn} onPress={handleSos} activeOpacity={0.85}>
-            <Text style={styles.sosLabel}>SOS</Text>
-            <Text style={styles.sosSubLabel}>SOS CẤP CỨU</Text>
-            <Text style={styles.sosHint}>Nhấn để gọi cấp cứu</Text>
-          </TouchableOpacity>
-        </Animated.View>
+        {/* SOS Button Center */}
+        <View style={styles.sosContainer}>
+          <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+            <TouchableOpacity 
+              style={styles.sosBtn} 
+              onPressIn={handleSosPressIn}
+              onPressOut={handleSosPressOut}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.sosText}>SOS</Text>
+            </TouchableOpacity>
+          </Animated.View>
+          <Text style={styles.sosHint}>Nhấn giữ 2 giây để gọi cứu trợ</Text>
+        </View>
 
-        {/* Medicine Schedule Button */}
-        <TouchableOpacity
-          style={styles.medScheduleBtn}
-          onPress={() => navigation.navigate('MedReminder')}
-          activeOpacity={0.85}
-        >
-          <MaterialIcons name="calendar-today" size={28} color={theme.colors.green} />
-          <Text style={styles.medScheduleText}>Lịch uống thuốc hôm nay</Text>
-          <MaterialIcons name="chevron-right" size={26} color={theme.colors.green} />
-        </TouchableOpacity>
-
-        {/* Next Medication Reminder */}
+        {/* Quick Med Widget */}
         {nextMed && (
-          <View style={styles.nextMedCard}>
-            <View style={styles.nextMedIcon}>
-              <MaterialIcons name="medication" size={24} color={theme.colors.orange} />
-            </View>
-            <View style={styles.nextMedInfo}>
-              <Text style={styles.nextMedTitle}>Uống thuốc lúc {nextMed.time}</Text>
-              <Text style={styles.nextMedDosage}>{nextMed.dosage} {nextMed.name}</Text>
-              <View style={styles.soonBadge}>
-                <MaterialIcons name="alarm" size={13} color={theme.colors.orange} />
-                <Text style={styles.soonText}> Sắp đến giờ</Text>
+          <Card variant="warning" style={styles.medCard}>
+            <View style={styles.medRow}>
+              <MaterialIcons name="access-alarm" size={32} color={theme.colors.warning} />
+              <View style={styles.medInfo}>
+                <Text style={styles.medLabel}>Sắp đến giờ: {nextMed.time}</Text>
+                <Text style={styles.medName}>{nextMed.name}</Text>
               </View>
             </View>
-          </View>
+            <Button 
+              title="ĐÃ UỐNG" 
+              variant="success" 
+              size="large" 
+              onPress={() => handleConfirmMed(nextMed.id)}
+              style={styles.medBtn}
+            />
+          </Card>
         )}
 
-        {taken > 0 && (
-          <View style={styles.progressRow}>
-            <Text style={styles.progressText}>✅ Đã uống {taken}/{meds.length} liều hôm nay</Text>
-          </View>
-        )}
+        {/* Progress Summary */}
+        <View style={styles.progressContainer}>
+          <Text style={styles.progressText}>
+            {takenCount > 0 ? `✅ Đã uống ${takenCount}/${meds.length} liều` : '🕒 Chưa uống liều nào hôm nay'}
+          </Text>
+        </View>
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Bottom Tab Bar */}
-      <View style={styles.tabBar}>
-        <TouchableOpacity style={[styles.tabItem, styles.tabActive]}>
-          <MaterialIcons name="home" size={26} color={theme.colors.white} />
-          <Text style={styles.tabLabelActive}>Trang chủ</Text>
+      {/* Simplified Navigation */}
+      <View style={styles.bottomNav}>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('MedReminder')}>
+          <MaterialIcons name="medication" size={32} color={theme.colors.primary} />
+          <Text style={styles.navText}>Lịch thuốc</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} onPress={() => navigation.navigate('MedReminder')}>
-          <MaterialIcons name="medication" size={26} color={theme.colors.textMedium} />
-          <Text style={styles.tabLabel}>Thuốc</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} onPress={handleSos}>
-          <Text style={styles.tabSosIcon}>SOS</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} onPress={() => navigation.navigate('ElderProfile')}>
-          <MaterialIcons name="person-outline" size={26} color={theme.colors.textMedium} />
-          <Text style={styles.tabLabel}>Hồ sơ</Text>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('ElderProfile')}>
+          <MaterialIcons name="person" size={32} color={theme.colors.primary} />
+          <Text style={styles.navText}>Hồ sơ</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -167,88 +180,48 @@ export const ElderlyHome = () => {
 };
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: theme.colors.backgroundLight },
+  safe: { flex: 1, backgroundColor: theme.colors.background },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.m, paddingVertical: theme.spacing.s,
-    backgroundColor: theme.colors.white,
-    borderBottomWidth: 1, borderBottomColor: theme.colors.borderLight,
+    padding: theme.spacing.m, backgroundColor: theme.colors.surface,
   },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.m },
   avatar: {
-    width: 42, height: 42, borderRadius: 21,
-    backgroundColor: theme.colors.textMedium,
-    alignItems: 'center', justifyContent: 'center',
+    width: 60, height: 60, borderRadius: 30, backgroundColor: theme.colors.neutral,
+    alignItems: 'center', justifyContent: 'center', borderWidth: 3,
   },
-  greeting: { fontSize: 12, color: theme.colors.textLight },
-  name: { fontSize: 16, fontWeight: '700', color: theme.colors.textDark },
-  bellBtn: { padding: 6, position: 'relative' },
-  bellDot: {
-    position: 'absolute', top: 6, right: 6,
-    width: 10, height: 10, borderRadius: 5, backgroundColor: theme.colors.primary,
-  },
+  greeting: { fontSize: theme.typography.elder.caption, color: theme.colors.text.secondary },
+  name: { fontSize: theme.typography.elder.header, fontWeight: 'bold', color: theme.colors.text.primary },
+  bellBtn: { padding: 4 },
   scroll: { padding: theme.spacing.m },
   question: {
-    fontSize: 28, fontWeight: '800', color: theme.colors.textDark,
-    marginBottom: theme.spacing.l, lineHeight: 36,
+    fontSize: theme.typography.elder.title, fontWeight: 'bold', 
+    color: theme.colors.text.primary, marginBottom: theme.spacing.xl,
   },
-  sosShadow: {
-    shadowColor: theme.colors.primary, shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4, shadowRadius: 20, elevation: 14,
-    alignSelf: 'center', marginBottom: theme.spacing.xl,
-  },
+  sosContainer: { alignItems: 'center', marginBottom: theme.spacing.xxl },
   sosBtn: {
-    width: 200, height: 200, borderRadius: 100,
-    backgroundColor: theme.colors.primary,
+    width: 220, height: 220, borderRadius: 110, backgroundColor: theme.colors.primary,
     alignItems: 'center', justifyContent: 'center',
+    shadowColor: theme.colors.primary, shadowOpacity: 0.5, shadowRadius: 15, elevation: 10,
   },
-  sosLabel: { fontSize: 48, fontWeight: '900', color: theme.colors.white, letterSpacing: 2 },
-  sosSubLabel: { fontSize: 16, fontWeight: '800', color: theme.colors.white, marginTop: 2 },
-  sosHint: { fontSize: 11, color: 'rgba(255,255,255,0.75)', marginTop: 4 },
-  medScheduleBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: theme.colors.greenLight,
-    borderRadius: theme.borderRadius.lg, padding: theme.spacing.m,
-    marginBottom: theme.spacing.m,
+  sosText: { fontSize: 50, fontWeight: '900', color: theme.colors.text.inverse },
+  sosHint: { fontSize: theme.typography.elder.caption, color: theme.colors.text.secondary, marginTop: theme.spacing.m, fontWeight: 'bold' },
+  medCard: { padding: theme.spacing.l, marginBottom: theme.spacing.l },
+  medRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.m, marginBottom: theme.spacing.m },
+  medInfo: { flex: 1 },
+  medLabel: { fontSize: theme.typography.elder.caption, color: theme.colors.warning, fontWeight: 'bold' },
+  medName: { fontSize: theme.typography.elder.header, fontWeight: 'bold', color: theme.colors.text.primary },
+  medBtn: { marginTop: theme.spacing.s },
+  progressContainer: { 
+    padding: theme.spacing.m, backgroundColor: theme.colors.neutral, 
+    borderRadius: theme.borderRadius.m, alignItems: 'center' 
   },
-  medScheduleText: { flex: 1, fontSize: 17, fontWeight: '700', color: theme.colors.green, lineHeight: 22 },
-  nextMedCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.m,
-    shadowColor: '#000', shadowOpacity: 0.06, shadowOffset: { width: 0, height: 2 }, shadowRadius: 6, elevation: 2,
-    marginBottom: theme.spacing.m,
+  progressText: { fontSize: theme.typography.elder.body, fontWeight: 'bold', color: theme.colors.text.primary },
+  bottomNav: {
+    flexDirection: 'row', backgroundColor: theme.colors.surface,
+    paddingVertical: theme.spacing.m, borderTopWidth: 1, borderTopColor: theme.colors.border,
+    justifyContent: 'space-around', position: 'absolute', bottom: 0, left: 0, right: 0,
   },
-  nextMedIcon: {
-    width: 48, height: 48, borderRadius: 24,
-    backgroundColor: theme.colors.orangeLight,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  nextMedInfo: { flex: 1 },
-  nextMedTitle: { fontSize: 17, fontWeight: '700', color: theme.colors.textDark },
-  nextMedDosage: { fontSize: 14, color: theme.colors.textMedium, marginVertical: 2 },
-  soonBadge: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  soonText: { fontSize: 12, color: theme.colors.orange, fontWeight: '600' },
-  progressRow: {
-    backgroundColor: theme.colors.greenLight, borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.s, alignItems: 'center',
-  },
-  progressText: { fontSize: 14, color: theme.colors.green, fontWeight: '600' },
-  tabBar: {
-    flexDirection: 'row', backgroundColor: theme.colors.white,
-    borderTopWidth: 1, borderTopColor: theme.colors.borderLight,
-    paddingBottom: 12, paddingTop: 8,
-  },
-  tabItem: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2 },
-  tabActive: {
-    backgroundColor: theme.colors.primary, borderRadius: theme.borderRadius.lg,
-    marginHorizontal: 6, paddingVertical: 8,
-  },
-  tabLabel: { fontSize: 11, color: theme.colors.textMedium },
-  tabLabelActive: { fontSize: 11, color: theme.colors.white, fontWeight: '700' },
-  tabSosIcon: {
-    fontSize: 12, fontWeight: '900', color: theme.colors.primary,
-    borderWidth: 2, borderColor: theme.colors.primary,
-    borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2,
-  },
+  navItem: { alignItems: 'center' },
+  navText: { fontSize: theme.typography.caregiver.body, fontWeight: 'bold', color: theme.colors.primary, marginTop: 4 },
 });

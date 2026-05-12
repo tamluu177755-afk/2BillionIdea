@@ -1,200 +1,164 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, Animated, TouchableOpacity, Alert, Easing, Linking, ActivityIndicator
+  View, Text, StyleSheet, Animated, TouchableOpacity, Alert, Easing, Linking, ActivityIndicator, Vibration
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
 import { cancelSos } from '../services/api';
 import { useRoute, useNavigation } from '@react-navigation/native';
-
+import { Button } from '../components/Button';
 
 export const SosSendingScreen = () => {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const { sosId, elderName } = route.params || {};
-  const [countdown, setCountdown] = useState(0); // Bỏ thời gian đờ chờ, kích hoạt ngay lập tức
-  const [actionTriggered, setActionTriggered] = useState(false);
+  const [countdown, setCountdown] = useState(3);
+  const [isSent, setIsSent] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const timerRef = useRef<any>(null);
 
   useEffect(() => {
     // Pulse animation
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.15, duration: 600, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 600, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1.2, duration: 500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 500, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
       ])
     ).start();
+
+    // 3-second countdown
+    timerRef.current = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current);
+          triggerEmergency();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
   }, []);
 
-  useEffect(() => {
-    if (countdown === 0 && !actionTriggered) {
-      triggerEmergencyActions();
-      setActionTriggered(true);
-    }
-  }, [countdown]);
-
-  const triggerEmergencyActions = async () => {
-    // 1. GỌI ĐIỆN NGAY cho Nhung (ưu tiên số 1) - không cần xác nhận
+  const triggerEmergency = () => {
+    setIsSent(true);
+    Vibration.vibrate([0, 500, 200, 500], true);
+    // 1. Call primary contact
     Linking.openURL('tel:0962664000').catch(() => {});
-    
-    // 2. Gửi SMS đồng loạt cho cả 2 người (nội dung soạn sẵn, gửi tự động)
-    setTimeout(() => {
-      Linking.openURL('sms:0962664000,0369414698?body=SOS! Bố đang cần hỗ trợ gấp!').catch(() => {});
-    }, 2000);
   };
 
   const handleCancel = async () => {
-    if (countdown <= 0) {
-      Alert.alert('Hết thời gian hủy', 'Đã chuyển thông báo SOS cho người thân!');
+    if (isSent) {
+      Alert.alert('Đã gửi cứu trợ', 'Tín hiệu đã được gửi tới người thân.');
       return;
     }
+    Vibration.cancel();
+    if (timerRef.current) clearInterval(timerRef.current);
     try {
       if (sosId) await cancelSos(sosId);
       navigation.goBack();
     } catch (e) {
-      Alert.alert('Lỗi', 'Không thể hủy SOS.');
+      navigation.goBack();
     }
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
-        <View style={styles.header}>
-          <Text style={styles.brand}>An Gia v2.0</Text>
-          <Text style={styles.versionLabel}>SOS Ưu tiên: Nhung</Text>
-        </View>
-
-        {/* Title */}
-        <Text style={styles.title}>ĐANG GỬI{'\n'}CẢNH BÁO SOS</Text>
-      <View style={styles.signalRow}>
-        <View style={styles.dot} />
-        <Text style={styles.signalText}>
-          {countdown > 0 ? 'Tín hiệu đang được truyền đi...' : 'Đã kết nối trực tiếp!'}
+    <SafeAreaView style={[styles.safe, isSent && styles.safeSent]}>
+      <View style={styles.header}>
+        <Text style={[styles.title, isSent && styles.titleSent]}>
+          {isSent ? 'ĐANG GỌI CỨU TRỢ\nKHẨN CẤP' : 'CHUẨN BỊ GỬI\nYÊU CẦU SOS'}
         </Text>
       </View>
 
-      {/* Pulsing SOS Circle */}
       <View style={styles.sosWrapper}>
         <Animated.View style={[styles.sosRing, { transform: [{ scale: pulseAnim }] }]} />
-        <View style={styles.sosBig}>
-          <Text style={styles.sosBigText}>SOS</Text>
+        <View style={[styles.sosCircle, isSent && styles.sosCircleSent]}>
+          {isSent ? (
+            <MaterialIcons name="emergency-share" size={80} color={theme.colors.text.inverse} />
+          ) : (
+            <Text style={styles.countdownText}>{countdown}</Text>
+          )}
         </View>
       </View>
 
-      {/* Calling Card */}
-      <View style={styles.callingCard}>
-        <View style={styles.callerIconWrap}>
-          <View style={styles.callerIcon}>
-            <MaterialIcons name="person" size={28} color={theme.colors.white} />
+      <View style={styles.infoContainer}>
+        <View style={styles.avatarContainer}>
+          <View style={styles.avatar}>
+             <MaterialIcons name="person" size={50} color={theme.colors.text.secondary} />
           </View>
           <View style={styles.callBadge}>
-            <MaterialIcons name="call" size={14} color={theme.colors.white} />
+            <MaterialIcons name="call" size={24} color={theme.colors.text.inverse} />
           </View>
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.callingLabel}>Ưu tiên liên hệ:</Text>
-          <Text style={styles.callerName}>Nhung</Text>
-          <Text style={styles.callerRelation}>Con gái - 0962664000</Text>
-        </View>
+        <Text style={styles.contactName}>Nhung - Con gái</Text>
+        <Text style={styles.statusText}>
+          {isSent ? 'Vị trí của ông đã được chia sẻ.\nCon đang đến với ông.' : 'Hệ thống đang chuẩn bị kết nối...'}
+        </Text>
       </View>
 
-      {/* Messaging Card */}
-      <View style={[styles.callingCard, { borderLeftColor: theme.colors.orange, marginTop: -10 }]}>
-        <View style={styles.callerIconWrap}>
-          <View style={styles.callerIcon}>
-            <MaterialIcons name="message" size={24} color={theme.colors.white} />
-          </View>
+      {!isSent ? (
+        <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
+          <Text style={styles.cancelText}>HỦY (Nếu nhấn nhầm)</Text>
+        </TouchableOpacity>
+      ) : (
+        <View style={styles.sentBadge}>
+          <ActivityIndicator color={theme.colors.text.inverse} size="large" />
+          <Text style={styles.sentBadgeText}>Đang giữ kết nối...</Text>
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.callingLabel}>Đồng thời gửi SMS tới:</Text>
-          <Text style={styles.callerName}>Anh Quang</Text>
-          <Text style={styles.callerRelation}>Con trai - 0369414698</Text>
-        </View>
-      </View>
-
-      {/* Location */}
-      <View style={styles.locationRow}>
-        <MaterialIcons name="location-on" size={20} color={theme.colors.orange} />
-        <Text style={styles.locationText}>Vị trí của bác đang được chia sẻ</Text>
-      </View>
-
-      <View style={{ marginTop: 20, alignItems: 'center' }}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-        <Text style={{ marginTop: 10, color: theme.colors.textMedium, fontWeight: '600' }}>Hệ thống đang kết nối tự động...</Text>
-      </View>
+      )}
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1, backgroundColor: '#FAFAFA', alignItems: 'center',
-    paddingHorizontal: theme.spacing.m,
+  safe: { flex: 1, backgroundColor: '#FFF0F0', alignItems: 'center', padding: theme.spacing.m },
+  safeSent: { backgroundColor: theme.colors.primary },
+  header: { marginTop: theme.spacing.xxl, marginBottom: theme.spacing.xxl },
+  title: { 
+    fontSize: theme.typography.elder.title, fontWeight: '900', 
+    color: theme.colors.primary, textAlign: 'center', lineHeight: 40 
   },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    width: '100%', marginTop: theme.spacing.m, marginBottom: theme.spacing.s,
+  titleSent: { color: theme.colors.text.inverse },
+  sosWrapper: { 
+    width: 240, height: 240, alignItems: 'center', justifyContent: 'center', 
+    marginBottom: theme.spacing.xxl 
   },
-  brand: {
-    fontSize: 20, fontWeight: '800', color: theme.colors.primary,
+  sosRing: { 
+    position: 'absolute', width: '100%', height: '100%', borderRadius: 120, 
+    backgroundColor: 'rgba(227, 45, 45, 0.15)' 
   },
-  versionLabel: {
-    fontSize: 12, fontWeight: '700', color: theme.colors.green,
-    backgroundColor: '#E8F5E9', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10,
+  sosCircle: { 
+    width: 180, height: 180, borderRadius: 90, backgroundColor: theme.colors.surface,
+    alignItems: 'center', justifyContent: 'center', elevation: 10,
+    borderWidth: 10, borderColor: theme.colors.primary,
   },
-  title: {
-    fontSize: 34, fontWeight: '900', color: theme.colors.primary,
-    textAlign: 'center', lineHeight: 40, marginBottom: 8,
+  sosCircleSent: { backgroundColor: theme.colors.primary, borderColor: theme.colors.surface },
+  countdownText: { fontSize: 80, fontWeight: '900', color: theme.colors.primary },
+  infoContainer: { alignItems: 'center', flex: 1 },
+  avatarContainer: { position: 'relative', marginBottom: theme.spacing.m },
+  avatar: { 
+    width: 100, height: 100, borderRadius: 50, backgroundColor: theme.colors.neutral,
+    alignItems: 'center', justifyContent: 'center', borderWidth: 4, borderColor: theme.colors.surface
   },
-  signalRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: theme.spacing.l },
-  dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: theme.colors.primary },
-  signalText: { fontSize: 14, color: theme.colors.textMedium, fontStyle: 'italic' },
-  sosWrapper: { position: 'relative', alignItems: 'center', justifyContent: 'center', marginBottom: theme.spacing.l },
-  sosRing: {
-    position: 'absolute', width: 180, height: 180, borderRadius: 90,
-    backgroundColor: 'rgba(211,47,47,0.18)',
+  callBadge: { 
+    position: 'absolute', bottom: 0, right: 0, 
+    width: 40, height: 40, borderRadius: 20, backgroundColor: theme.colors.success,
+    alignItems: 'center', justifyContent: 'center'
   },
-  sosBig: {
-    width: 150, height: 150, borderRadius: 75,
-    backgroundColor: theme.colors.primary,
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: theme.colors.primary, shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.5, shadowRadius: 16, elevation: 14,
+  contactName: { fontSize: theme.typography.elder.header, fontWeight: 'bold', marginBottom: theme.spacing.s },
+  statusText: { 
+    fontSize: theme.typography.elder.body, color: theme.colors.text.secondary, 
+    textAlign: 'center', lineHeight: 30 
   },
-  sosBigText: { fontSize: 48, fontWeight: '900', color: theme.colors.white },
-  callingCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 16,
-    backgroundColor: theme.colors.white,
-    borderRadius: theme.borderRadius.lg, padding: theme.spacing.m,
-    width: '100%', marginBottom: theme.spacing.m,
-    shadowColor: '#000', shadowOpacity: 0.08, shadowOffset: { width: 0, height: 3 }, shadowRadius: 8, elevation: 3,
-    borderLeftWidth: 5, borderLeftColor: theme.colors.green,
+  cancelBtn: { 
+    backgroundColor: theme.colors.neutral, paddingVertical: 20, paddingHorizontal: 40, 
+    borderRadius: theme.borderRadius.l, marginBottom: theme.spacing.xl 
   },
-  callerIconWrap: { position: 'relative' },
-  callerIcon: {
-    width: 56, height: 56, borderRadius: 14,
-    backgroundColor: '#1a3a4a',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  callBadge: {
-    position: 'absolute', bottom: -4, right: -4,
-    width: 22, height: 22, borderRadius: 11,
-    backgroundColor: theme.colors.green,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  callingLabel: { fontSize: 12, color: theme.colors.textLight, marginBottom: 1 },
-  callerName: { fontSize: 22, fontWeight: '800', color: theme.colors.textDark },
-  callerRelation: { fontSize: 14, color: theme.colors.green, fontWeight: '700' },
-  locationRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: theme.spacing.xl,
-  },
-  locationText: { fontSize: 14, color: theme.colors.textMedium, textAlign: 'center' },
-  cancelBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#E0E0E0', borderRadius: theme.borderRadius.xl,
-    paddingVertical: 14, paddingHorizontal: 28, marginBottom: 6,
-  },
-  cancelBtnDisabled: { opacity: 0.5 },
-  cancelText: { fontSize: 16, fontWeight: '700', color: theme.colors.textDark },
-  cancelHint: { fontSize: 12, color: theme.colors.textLight },
+  cancelText: { fontSize: theme.typography.elder.body, fontWeight: 'bold', color: theme.colors.text.primary },
+  sentBadge: { alignItems: 'center', gap: 10, marginBottom: theme.spacing.xl },
+  sentBadgeText: { fontSize: theme.typography.elder.body, color: theme.colors.text.inverse, fontWeight: 'bold' },
 });

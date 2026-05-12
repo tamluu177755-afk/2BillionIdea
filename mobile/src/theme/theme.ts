@@ -1,23 +1,33 @@
 export const theme = {
   colors: {
-    primary: '#E53935',       // Đỏ chính An Gia
-    primaryDark: '#B71C1C',   // Đỏ đậm
-    green: '#388E3C',         // Xanh lá (trạng thái tốt / xác nhận)
-    greenLight: '#E8F5E9',    // Xanh nhạt
-    orange: '#F57C00',        // Cam (cảnh báo / sắp đến giờ)
-    orangeLight: '#FFF3E0',
-    backgroundLight: '#F5F5F5',
-    backgroundDark: '#1A1A1A',
-    white: '#FFFFFF',
-    textDark: '#212121',
-    textMedium: '#616161',
-    textLight: '#9E9E9E',
-    borderLight: '#E0E0E0',
-    cardBg: '#FFFFFF',
-    sosRed: '#D32F2F',
+    primary: '#E32D2D', // Red for SOS & Branding
+    success: '#27AE60', // Green for Safe/Taken
+    warning: '#F2994A', // Orange for Pending/Attention
+    background: '#F8F9FA',
+    surface: '#FFFFFF',
+    text: {
+      primary: '#1A1A1A',
+      secondary: '#666666',
+      inverse: '#FFFFFF',
+    },
+    neutral: '#E0E0E0',
+    border: '#EEEEEE',
   },
-  fonts: {
-    display: 'System',
+  typography: {
+    fontFamily: 'System', // Fallback to System as fonts are not loaded yet
+    fontFamilyBold: 'System',
+    elder: {
+      title: 28,
+      header: 24,
+      body: 22,
+      caption: 18,
+    },
+    caregiver: {
+      title: 20,
+      header: 18,
+      body: 16,
+      caption: 14,
+    }
   },
   spacing: {
     xs: 4,
@@ -28,19 +38,17 @@ export const theme = {
     xxl: 48,
   },
   borderRadius: {
-    sm: 6,
-    md: 12,
-    lg: 16,
-    xl: 24,
-    full: 9999,
+    s: 8,
+    m: 16,
+    l: 24,
+    xl: 32,
+    round: 999,
   },
-  fontSize: {
-    xs: 12,
-    sm: 14,
-    md: 16,
-    lg: 18,
-    xl: 22,
-    xxl: 28,
-    huge: 36,
+  shadow: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
   }
 };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Image, ActivityIndicator, Dimensions
@@ -8,13 +8,11 @@ import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
 import { getElderUser, getSocket } from '../services/api';
 import { useNavigation } from '@react-navigation/native';
-
-const SCREEN_W = Dimensions.get('window').width;
+import { Card } from '../components/Card';
 
 const CAMERAS = [
-  { label: 'Phòng khách', status: 'BÌNH THƯỜNG', image: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=600' },
-  { label: 'Phòng ngủ', status: 'BÌNH THƯỜNG', image: 'https://images.unsplash.com/photo-1588854337236-6889d631faa8?w=600' },
-  { label: 'Nhà bếp', status: 'BÌNH THƯỜNG', image: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=600' },
+  { label: 'Phòng khách', status: 'Bình thường', image: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=600' },
+  { label: 'Phòng ngủ', status: 'Phát hiện di chuyển', image: 'https://images.unsplash.com/photo-1588854337236-6889d631faa8?w=600' },
 ];
 
 export const CaregiverDashboard = () => {
@@ -22,134 +20,131 @@ export const CaregiverDashboard = () => {
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('Bố');
-  const [cameraIndex, setCameraIndex] = useState(0);
-  const [statusText, setStatusText] = useState('Đang cập nhật...');
-  const [statusTime, setStatusTime] = useState('');
+  const [statusText, setStatusText] = useState('Đang hoạt động bình thường');
 
   useEffect(() => {
     loadData();
-
-    // Socket: listen for medication_taken and sos_alert events
     const sock = getSocket();
     sock.on('medication_taken', (data: any) => {
       setStatusText(`Vừa uống thuốc ${data.name} xong`);
-      setStatusTime('Vừa cập nhật');
+      loadData();
     });
     sock.on('sos_alert', (data: any) => {
-      navigation.navigate('SosAlert', { sosId: data.sosId, elderName: 'Bố (Ông Minh)', locationAddr: data.locationAddr, createdAt: data.createdAt });
+      navigation.navigate('SosAlert', { 
+        sosId: data.sosId, 
+        elderName: activeTab === 'Bố' ? 'Ông Minh' : 'Bà Lan', 
+        locationAddr: data.locationAddr, 
+        createdAt: data.createdAt 
+      });
     });
     return () => { sock.off('medication_taken'); sock.off('sos_alert'); };
-  }, []);
+  }, [activeTab]);
 
   const loadData = async () => {
     try {
       const data = await getElderUser();
       setUserData(data);
-      const meds = data?.elderProfile?.medications || [];
-      const lastTaken = meds.filter((m: any) => m.status === 'TAKEN').slice(-1)[0];
-      if (lastTaken) {
-        setStatusText(`Vừa uống ${lastTaken.name} xong`);
-        setStatusTime('Cập nhật 2 phút trước');
-      } else {
-        setStatusText('Đang hoạt động bình thường');
-        setStatusTime('Vừa cập nhật');
-      }
     } catch (e) {
-      setStatusText('Không thể kết nối');
+      console.error(e);
     } finally {
       setLoading(false);
     }
   };
+
+  const meds = userData?.elderProfile?.medications || [];
+  const takenCount = meds.filter((m: any) => m.status === 'TAKEN').length;
+  const progress = meds.length > 0 ? (takenCount / meds.length) : 0;
 
   return (
     <SafeAreaView style={styles.safe}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <View style={styles.logoIcon}>
-            <MaterialIcons name="person-pin" size={20} color={theme.colors.primary} />
-          </View>
           <Text style={styles.brand}>An Gia</Text>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>CON CÁI</Text>
+          </View>
         </View>
         <TouchableOpacity style={styles.bellBtn}>
-          <Ionicons name="notifications-outline" size={26} color={theme.colors.textMedium} />
+          <Ionicons name="notifications-outline" size={24} color={theme.colors.text.primary} />
         </TouchableOpacity>
       </View>
 
-      {/* Person Tabs */}
-      <View style={styles.tabRow}>
-        {['Bố (Ông Minh)', 'Mẹ'].map((tab, i) => {
-          const key = i === 0 ? 'Bố' : 'Mẹ';
+      {/* Role Switcher */}
+      <View style={styles.tabContainer}>
+        {['Bố (Ông Minh)', 'Mẹ (Bà Lan)'].map((name) => {
+          const key = name.split(' ')[0];
           return (
             <TouchableOpacity
-              key={tab}
-              style={[styles.personTab, activeTab === key && styles.personTabActive]}
+              key={key}
+              style={[styles.tab, activeTab === key && styles.tabActive]}
               onPress={() => setActiveTab(key)}
             >
-              <Text style={[styles.personTabText, activeTab === key && styles.personTabTextActive]}>
-                {tab}
-              </Text>
+              <Text style={[styles.tabText, activeTab === key && styles.tabTextActive]}>{name}</Text>
             </TouchableOpacity>
           );
         })}
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        {/* Status Card */}
-        <View style={styles.statusCard}>
+        {/* Real-time Status */}
+        <Card style={styles.statusCard}>
           <View style={styles.statusHeader}>
-            <Text style={styles.statusLabel}>TRẠNG THÁI HIỆN TẠI</Text>
-            <View style={styles.onlineDot} />
+            <View style={styles.dot} />
+            <Text style={styles.statusLabel}>TRẠNG THÁI AI THỜI GIAN THỰC</Text>
           </View>
-          {loading
-            ? <ActivityIndicator color={theme.colors.primary} />
-            : <Text style={styles.statusBig}>{statusText}</Text>
-          }
-          <View style={styles.statusUserRow}>
-            <View style={styles.miniAvatar}>
-              <MaterialIcons name="person" size={14} color={theme.colors.white} />
+          <Text style={styles.statusBig}>{statusText}</Text>
+          <Text style={styles.statusTime}>Cập nhật vừa xong</Text>
+        </Card>
+
+        {/* Med Progress Section */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Theo dõi thuốc</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('PlaceholderScreen')}>
+            <Text style={styles.sectionLink}>Xem chi tiết</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Card style={styles.medCard}>
+          <View style={styles.medProgressRow}>
+            <View style={styles.medInfo}>
+              <Text style={styles.medCountText}>{activeTab} đã uống</Text>
+              <Text style={styles.medCountBig}>{takenCount}/{meds.length}</Text>
+              <Text style={styles.medSubText}>liều thuốc hôm nay</Text>
             </View>
-            <Text style={styles.statusTimeText}>{statusTime}</Text>
+            <View style={styles.circularProgress}>
+               {/* Simple stylized progress */}
+               <View style={styles.progressRing}>
+                  <Text style={styles.progressPercent}>{Math.round(progress * 100)}%</Text>
+               </View>
+            </View>
+          </View>
+        </Card>
+
+        {/* Camera Section */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Camera giám sát</Text>
+          <View style={styles.liveBadge}>
+            <View style={[styles.dot, { backgroundColor: theme.colors.primary }]} />
+            <Text style={styles.liveText}>LIVE</Text>
           </View>
         </View>
 
-        {/* Camera Carousel */}
-        <View style={styles.cameraSection}>
-          <View style={styles.cameraCard}>
-            <Image
-              source={{ uri: CAMERAS[cameraIndex].image }}
-              style={styles.cameraImg}
-              resizeMode="cover"
-            />
-            {/* AI Badge */}
-            <View style={styles.aiBadge}>
-              <View style={styles.aiDot} />
-              <Text style={styles.aiText}>AI: {CAMERAS[cameraIndex].status}</Text>
+        {CAMERAS.map((cam, idx) => (
+          <View key={idx} style={styles.cameraWrapper}>
+            <Image source={{ uri: cam.image }} style={styles.cameraImg} />
+            <View style={styles.cameraOverlay}>
+              <View style={styles.aiTag}>
+                <MaterialIcons name="auto-awesome" size={14} color={theme.colors.success} />
+                <Text style={styles.aiTagText}>AI: {cam.status}</Text>
+              </View>
+              <Text style={styles.cameraLabel}>{cam.label}</Text>
             </View>
-            {/* Mic btn */}
-            <TouchableOpacity style={styles.micBtn}>
-              <MaterialIcons name="mic" size={20} color={theme.colors.textDark} />
-            </TouchableOpacity>
-            {/* Room label */}
-            <View style={styles.roomLabel}>
-              <Text style={styles.roomName}>{CAMERAS[cameraIndex].label}</Text>
-              <Text style={styles.roomLive}>Trực tiếp</Text>
-            </View>
-            {/* Fullscreen */}
-            <TouchableOpacity style={styles.fullscreenBtn}>
-              <MaterialIcons name="fullscreen" size={22} color={theme.colors.white} />
+            <TouchableOpacity style={styles.expandBtn}>
+              <MaterialIcons name="fullscreen" size={24} color={theme.colors.text.inverse} />
             </TouchableOpacity>
           </View>
-
-          {/* Dots */}
-          <View style={styles.dotsRow}>
-            {CAMERAS.map((_, i) => (
-              <TouchableOpacity key={i} onPress={() => setCameraIndex(i)}>
-                <View style={[styles.dot, cameraIndex === i && styles.dotActive]} />
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
+        ))}
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -158,72 +153,50 @@ export const CaregiverDashboard = () => {
 };
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F5F5F5' },
+  safe: { flex: 1, backgroundColor: theme.colors.background },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.m, paddingVertical: theme.spacing.s,
-    backgroundColor: theme.colors.white, borderBottomWidth: 1, borderBottomColor: theme.colors.borderLight,
+    padding: theme.spacing.m, backgroundColor: theme.colors.surface,
   },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  logoIcon: {
-    width: 32, height: 32, borderRadius: 8,
-    backgroundColor: '#FFE0CC', alignItems: 'center', justifyContent: 'center',
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.s },
+  brand: { fontSize: 20, fontWeight: '900', color: theme.colors.primary },
+  badge: { backgroundColor: theme.colors.neutral, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
+  badgeText: { fontSize: 10, fontWeight: 'bold', color: theme.colors.text.secondary },
+  bellBtn: { padding: 4 },
+  tabContainer: { 
+    flexDirection: 'row', padding: theme.spacing.m, gap: theme.spacing.m, 
+    backgroundColor: theme.colors.surface, borderBottomWidth: 1, borderBottomColor: theme.colors.border 
   },
-  brand: { fontSize: 18, fontWeight: '900', color: theme.colors.primary },
-  bellBtn: { padding: 6 },
-  tabRow: { flexDirection: 'row', gap: 10, padding: theme.spacing.m, paddingBottom: 0 },
-  personTab: {
-    paddingHorizontal: 18, paddingVertical: 8, borderRadius: theme.borderRadius.full,
-    backgroundColor: '#F0F0F0',
-  },
-  personTabActive: { backgroundColor: theme.colors.primary },
-  personTabText: { fontSize: 14, fontWeight: '700', color: theme.colors.textMedium },
-  personTabTextActive: { color: theme.colors.white },
+  tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: theme.borderRadius.m, backgroundColor: theme.colors.neutral },
+  tabActive: { backgroundColor: theme.colors.primary },
+  tabText: { fontSize: 14, fontWeight: 'bold', color: theme.colors.text.secondary },
+  tabTextActive: { color: theme.colors.text.inverse },
   scroll: { padding: theme.spacing.m },
-  statusCard: {
-    backgroundColor: theme.colors.white, borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.m, marginBottom: theme.spacing.m,
-    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
-  },
-  statusHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
-  statusLabel: { fontSize: 11, fontWeight: '800', color: theme.colors.textMedium, letterSpacing: 1 },
-  onlineDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#4CAF50' },
-  statusBig: { fontSize: 22, fontWeight: '800', color: theme.colors.textDark, marginBottom: theme.spacing.m },
-  statusUserRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  miniAvatar: {
-    width: 28, height: 28, borderRadius: 14,
-    backgroundColor: theme.colors.textLight, alignItems: 'center', justifyContent: 'center',
-  },
-  statusTimeText: { fontSize: 13, color: theme.colors.textMedium },
-  cameraSection: { marginBottom: theme.spacing.m },
-  cameraCard: {
-    borderRadius: theme.borderRadius.xl, overflow: 'hidden', position: 'relative',
-    height: 220,
-    shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10, elevation: 4,
-  },
+  statusCard: { marginBottom: theme.spacing.l, padding: theme.spacing.l },
+  statusHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.success },
+  statusLabel: { fontSize: 10, fontWeight: 'bold', color: theme.colors.text.secondary, letterSpacing: 1 },
+  statusBig: { fontSize: 18, fontWeight: 'bold', color: theme.colors.text.primary, marginBottom: 4 },
+  statusTime: { fontSize: 12, color: theme.colors.text.secondary },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.m },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: theme.colors.text.primary },
+  sectionLink: { fontSize: 14, color: theme.colors.primary, fontWeight: 'bold' },
+  medCard: { padding: theme.spacing.l, marginBottom: theme.spacing.l },
+  medProgressRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  medInfo: { flex: 1 },
+  medCountText: { fontSize: 14, color: theme.colors.text.secondary },
+  medCountBig: { fontSize: 32, fontWeight: 'bold', color: theme.colors.text.primary },
+  medSubText: { fontSize: 14, color: theme.colors.text.secondary },
+  circularProgress: { width: 80, height: 80, borderRadius: 40, borderWidth: 8, borderColor: theme.colors.neutral, alignItems: 'center', justifyContent: 'center' },
+  progressRing: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
+  progressPercent: { fontSize: 18, fontWeight: 'bold', color: theme.colors.primary },
+  liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFEBEB', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
+  liveText: { fontSize: 10, fontWeight: 'bold', color: theme.colors.primary },
+  cameraWrapper: { height: 200, borderRadius: theme.borderRadius.l, overflow: 'hidden', marginBottom: theme.spacing.m, position: 'relative' },
   cameraImg: { width: '100%', height: '100%' },
-  aiBadge: {
-    position: 'absolute', top: 12, left: 12,
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 20,
-    paddingHorizontal: 10, paddingVertical: 5,
-  },
-  aiDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4CAF50' },
-  aiText: { fontSize: 12, color: theme.colors.white, fontWeight: '700' },
-  micBtn: {
-    position: 'absolute', top: 12, right: 12,
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: theme.colors.white, alignItems: 'center', justifyContent: 'center',
-  },
-  roomLabel: { position: 'absolute', bottom: 12, left: 12 },
-  roomName: { fontSize: 16, fontWeight: '800', color: theme.colors.white, textShadowColor: '#00000088', textShadowRadius: 4, textShadowOffset: { width: 1, height: 1 } },
-  roomLive: { fontSize: 12, color: 'rgba(255,255,255,0.8)' },
-  fullscreenBtn: {
-    position: 'absolute', bottom: 12, right: 12,
-    width: 34, height: 34, borderRadius: 10,
-    backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center',
-  },
-  dotsRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 10, gap: 8 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#BDBDBD' },
-  dotActive: { backgroundColor: theme.colors.primary, width: 20 },
+  cameraOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: theme.spacing.m, backgroundColor: 'rgba(0,0,0,0.3)' },
+  aiTag: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.9)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginBottom: 4 },
+  aiTagText: { fontSize: 10, fontWeight: 'bold', color: theme.colors.success },
+  cameraLabel: { fontSize: 16, fontWeight: 'bold', color: theme.colors.text.inverse },
+  expandBtn: { position: 'absolute', top: 12, right: 12, backgroundColor: 'rgba(0,0,0,0.4)', padding: 6, borderRadius: 8 },
 });

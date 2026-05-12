@@ -1,14 +1,16 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle, View } from 'react-native';
 import { theme } from '../theme/theme';
 import { MaterialIcons } from '@expo/vector-icons';
 
-type ButtonVariant = 'primary' | 'emergency' | 'outline' | 'ghost';
+type ButtonVariant = 'primary' | 'success' | 'warning' | 'emergency' | 'outline' | 'ghost';
+type ButtonSize = 'standard' | 'large';
 
 interface ButtonProps {
   title: string;
   onPress: () => void;
   variant?: ButtonVariant;
+  size?: ButtonSize;
   icon?: keyof typeof MaterialIcons.glyphMap;
   style?: ViewStyle;
   textStyle?: TextStyle;
@@ -19,6 +21,7 @@ export const Button: React.FC<ButtonProps> = ({
   title, 
   onPress, 
   variant = 'primary', 
+  size = 'standard',
   icon, 
   style, 
   textStyle,
@@ -28,7 +31,9 @@ export const Button: React.FC<ButtonProps> = ({
   const getBackgroundColor = () => {
     switch (variant) {
       case 'primary': return theme.colors.primary;
-      case 'emergency': return theme.colors.sosRed;
+      case 'success': return theme.colors.success;
+      case 'warning': return theme.colors.warning;
+      case 'emergency': return theme.colors.primary;
       case 'outline': return 'transparent';
       case 'ghost': return 'transparent';
       default: return theme.colors.primary;
@@ -38,8 +43,8 @@ export const Button: React.FC<ButtonProps> = ({
   const getTextColor = () => {
     switch (variant) {
       case 'outline': return theme.colors.primary;
-      case 'ghost': return theme.colors.textDark;
-      default: return theme.colors.white;
+      case 'ghost': return theme.colors.text.primary;
+      default: return theme.colors.text.inverse;
     }
   };
 
@@ -47,6 +52,8 @@ export const Button: React.FC<ButtonProps> = ({
     if (variant === 'outline') return theme.colors.primary;
     return 'transparent';
   };
+
+  const isLarge = size === 'large';
 
   return (
     <TouchableOpacity 
@@ -56,7 +63,9 @@ export const Button: React.FC<ButtonProps> = ({
           backgroundColor: getBackgroundColor(),
           borderColor: getBorderColor(),
           borderWidth: variant === 'outline' ? 2 : 0,
-          opacity: disabled ? 0.5 : 1
+          opacity: disabled ? 0.5 : 1,
+          height: isLarge ? 64 : 48,
+          borderRadius: isLarge ? theme.borderRadius.l : theme.borderRadius.m,
         },
         style
       ]} 
@@ -67,14 +76,17 @@ export const Button: React.FC<ButtonProps> = ({
       {icon && (
         <MaterialIcons 
           name={icon} 
-          size={variant === 'emergency' ? 48 : 24} 
+          size={isLarge ? 32 : 24} 
           color={getTextColor()} 
           style={styles.icon}
         />
       )}
       <Text style={[
         styles.text, 
-        { color: getTextColor() },
+        { 
+          color: getTextColor(),
+          fontSize: isLarge ? theme.typography.elder.body : theme.typography.caregiver.body,
+        },
         variant === 'emergency' && styles.emergencyText,
         textStyle
       ]}>
@@ -86,9 +98,7 @@ export const Button: React.FC<ButtonProps> = ({
 
 const styles = StyleSheet.create({
   button: {
-    paddingVertical: theme.spacing.m,
-    paddingHorizontal: theme.spacing.xl,
-    borderRadius: theme.borderRadius.lg,
+    paddingHorizontal: theme.spacing.l,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -97,11 +107,9 @@ const styles = StyleSheet.create({
     marginRight: theme.spacing.s,
   },
   text: {
-    fontSize: 18,
     fontWeight: 'bold',
   },
   emergencyText: {
-    fontSize: 24,
     fontWeight: '900',
     textTransform: 'uppercase',
     letterSpacing: 2,
