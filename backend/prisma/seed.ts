@@ -5,9 +5,18 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Seeding An Gia data...');
+  console.log('Seeding An Gia production demo data...');
   const today = new Date().toISOString().split('T')[0];
 
+  // Clean existing data to ensure a fresh start for demo
+  await prisma.caregiverRelation.deleteMany({});
+  await prisma.medication.deleteMany({});
+  await prisma.vitalRecord.deleteMany({});
+  await prisma.sosEvent.deleteMany({});
+  await prisma.elderProfile.deleteMany({});
+  await prisma.user.deleteMany({});
+
+  // 1. Create Elder User
   const elderUser = await prisma.user.create({
     data: {
       phoneNumber: '0901234567',
@@ -15,7 +24,10 @@ async function main() {
       role: 'ELDER',
       elderProfile: {
         create: {
-          age: 72, gender: 'Nam', height: 165, weight: 68,
+          age: 72, 
+          gender: 'Nam', 
+          height: 165, 
+          weight: 68,
           conditions: '["Cao huyết áp", "Tiểu đường tuýp 2"]',
           vitals: {
             create: [
@@ -25,11 +37,42 @@ async function main() {
           },
           medications: {
             create: [
-              { name: 'Huyết áp', dosage: '2 viên', time: '08:00', period: 'MORNING', status: 'TAKEN', taken: true, date: today, imageUrl: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=80' },
-              { name: 'Tim mạch', dosage: '2 viên', time: '09:00', period: 'MORNING', status: 'PENDING', taken: false, date: today, imageUrl: 'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=80' },
-              { name: 'Tiểu đường', dosage: '1 viên', time: '12:30', period: 'NOON', status: 'PENDING', taken: false, date: today, imageUrl: 'https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=80' },
-              { name: 'Mỡ máu', dosage: '1 viên', time: '20:00', period: 'EVENING', status: 'PENDING', taken: false, date: today, imageUrl: 'https://images.unsplash.com/photo-1550572017-edd951b55104?w=80' },
-              { name: 'Vitamin D', dosage: '1 viên', time: '20:30', period: 'EVENING', status: 'PENDING', taken: false, date: today },
+              { 
+                name: 'Omega-3 (Dầu cá)', 
+                dosage: '1 viên', 
+                time: '07:30', 
+                period: 'MORNING', 
+                status: 'PENDING', 
+                taken: false, 
+                date: today 
+              },
+              { 
+                name: 'Men tiêu hóa', 
+                dosage: '1 gói', 
+                time: '12:00', 
+                period: 'NOON', 
+                status: 'PENDING', 
+                taken: false, 
+                date: today 
+              },
+              { 
+                name: 'Calcium (Canxi)', 
+                dosage: '1 viên', 
+                time: '19:30', 
+                period: 'EVENING', 
+                status: 'PENDING', 
+                taken: false, 
+                date: today 
+              },
+              { 
+                name: 'Huyết áp', 
+                dosage: '1 viên', 
+                time: '08:00', 
+                period: 'MORNING', 
+                status: 'TAKEN', 
+                taken: true, 
+                date: today 
+              },
             ]
           }
         }
@@ -38,7 +81,8 @@ async function main() {
     include: { elderProfile: true }
   });
 
-  await prisma.user.create({
+  // 2. Create Caregiver User
+  const caregiverUser = await prisma.user.create({
     data: {
       phoneNumber: '0987654321',
       name: 'Anh Tuấn',
@@ -46,12 +90,22 @@ async function main() {
     }
   });
 
+  // 3. Link them
   if (elderUser.elderProfile) {
     await prisma.caregiverRelation.create({
-      data: { elderId: elderUser.id, caregiverId: (await prisma.user.findFirst({ where: { role: 'CAREGIVER' } }))!.id, relation: 'Con trai' }
+      data: { 
+        elderId: elderUser.id, 
+        caregiverId: caregiverUser.id, 
+        relation: 'Con trai' 
+      }
     });
   }
-  console.log('✅ Seeded successfully. Elder:', elderUser.name);
+
+  console.log('✅ Seeded successfully.');
+  console.log('Elder Login: 0901234567 (Ông Minh)');
+  console.log('Caregiver Login: 0987654321 (Anh Tuấn)');
 }
 
-main().catch(console.error).finally(() => prisma.$disconnect());
+main()
+  .catch(console.error)
+  .finally(() => prisma.$disconnect());
