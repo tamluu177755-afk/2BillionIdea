@@ -100,10 +100,10 @@ export const ElderlyProfile = () => {
               <Text style={styles.rankText}>1</Text>
             </View>
             <View style={styles.contactInfo}>
-              <Text style={styles.contactName}>Nhung - Con gái</Text>
-              <Text style={styles.contactPhone}>0962 664 000</Text>
+              <Text style={styles.contactName}>Tuấn - Con trai</Text>
+              <Text style={styles.contactPhone}>0385 075 856</Text>
             </View>
-            <TouchableOpacity style={styles.callIcon} onPress={() => handleCall('0962664000')}>
+            <TouchableOpacity style={styles.callIcon} onPress={() => handleCall('0385 075 856')}>
               <MaterialIcons name="call" size={28} color={theme.colors.text.inverse} />
             </TouchableOpacity>
           </View>
@@ -113,7 +113,7 @@ export const ElderlyProfile = () => {
               <Text style={[styles.rankText, { color: theme.colors.text.secondary }]}>2</Text>
             </View>
             <View style={styles.contactInfo}>
-              <Text style={styles.contactName}>Tuấn - Con trai</Text>
+              <Text style={styles.contactName}>Nhung - Con gái</Text>
               <Text style={styles.contactPhone}>0912 345 678</Text>
             </View>
             <TouchableOpacity style={[styles.callIcon, { backgroundColor: theme.colors.neutral }]} onPress={() => handleCall('0912345678')}>

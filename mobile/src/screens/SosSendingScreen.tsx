@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, Animated, TouchableOpacity, Alert, Easing, Linking, ActivityIndicator, Vibration
 } from 'react-native';
 import { Audio } from 'expo-av';
+import * as Speech from 'expo-speech';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
@@ -21,15 +22,16 @@ export const SosSendingScreen = () => {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const timerRef = useRef<any>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
+  const speechIntervalRef = useRef<any>(null);
 
   const { elderUser } = useAppStore();
 
   useEffect(() => {
-    // Play alarm sound
+    // Play urgent siren sound
     const playAlarm = async () => {
       try {
         const { sound } = await Audio.Sound.createAsync(
-          { uri: 'https://assets.mixkit.co/active_storage/sfx/951/951-preview.mp3' },
+          { uri: 'https://assets.mixkit.co/active_storage/sfx/951/951-preview.mp3' }, // Siren
           { isLooping: true, volume: 1.0 }
         );
         soundRef.current = sound;
@@ -38,7 +40,18 @@ export const SosSendingScreen = () => {
         console.log('Error playing alarm', e);
       }
     };
+
+    const startSpeechAlert = () => {
+      const message = `${elderUser?.name || 'Ông'} cần được hỗ trợ.`;
+      const speak = () => {
+        Speech.speak(message, { language: 'vi-VN', rate: 0.9, pitch: 1.0 });
+      };
+      speak();
+      speechIntervalRef.current = setInterval(speak, 5000);
+    };
+
     playAlarm();
+    startSpeechAlert();
 
     // Pulse animation
     Animated.loop(
@@ -62,6 +75,8 @@ export const SosSendingScreen = () => {
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      if (speechIntervalRef.current) clearInterval(speechIntervalRef.current);
+      Speech.stop();
       if (soundRef.current) {
         soundRef.current.stopAsync();
         soundRef.current.unloadAsync();
@@ -88,6 +103,8 @@ export const SosSendingScreen = () => {
   };
 
   const handleCancel = async () => {
+    if (speechIntervalRef.current) clearInterval(speechIntervalRef.current);
+    Speech.stop();
     if (soundRef.current) {
       await soundRef.current.stopAsync();
     }
@@ -102,6 +119,8 @@ export const SosSendingScreen = () => {
   };
 
   const handleReturnHome = async () => {
+    if (speechIntervalRef.current) clearInterval(speechIntervalRef.current);
+    Speech.stop();
     if (soundRef.current) {
       await soundRef.current.stopAsync();
     }

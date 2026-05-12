@@ -74,6 +74,18 @@ export const CaregiverDashboard = () => {
     };
   }, [sosAlertData]);
 
+  const handleStopAlarmAndNavigate = async (screen: string, params?: any) => {
+    if (soundRef.current) {
+      try {
+        await soundRef.current.stopAsync();
+        await soundRef.current.unloadAsync();
+        soundRef.current = null;
+      } catch (e) {}
+    }
+    setSosAlertData(null);
+    navigation.navigate(screen, params);
+  };
+
   useFocusEffect(
     useCallback(() => {
       // Initialize socket and listeners
@@ -145,22 +157,13 @@ export const CaregiverDashboard = () => {
           
           <TouchableOpacity 
             style={styles.sosOverlayBtn}
-            onPress={async () => {
-              // Unlock and play sound on this user interaction for iOS Web
-              try {
-                await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-                if (soundRef.current) {
-                  await soundRef.current.playAsync();
-                }
-              } catch (e) {}
-
-              navigation.navigate('SosAlert', { 
+            onPress={() => {
+              handleStopAlarmAndNavigate('SosAlert', { 
                 sosId: sosAlertData.sosId, 
                 elderName: sosAlertData.elderName, 
                 locationAddr: sosAlertData.locationAddr, 
                 createdAt: sosAlertData.createdAt 
               });
-              setSosAlertData(null);
             }}
           >
             <Text style={styles.sosOverlayBtnText}>XEM VỊ TRÍ & HỖ TRỢ NGAY</Text>
@@ -171,9 +174,21 @@ export const CaregiverDashboard = () => {
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.brand}>An Gia</Text>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>CON CÁI</Text>
-          </View>
+          <TouchableOpacity 
+            style={[styles.badge, { backgroundColor: theme.colors.primary }]}
+            onPress={async () => {
+              try {
+                await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+                const { sound } = await Audio.Sound.createAsync(
+                  { uri: 'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3' }, // Short beep to unlock
+                  { shouldPlay: true, volume: 0.1 }
+                );
+                Alert.alert("Thông báo", "Hệ thống âm thanh khẩn cấp đã sẵn sàng.");
+              } catch (e) {}
+            }}
+          >
+            <Text style={[styles.badgeText, { color: 'white' }]}>KÍCH HOẠT ÂM THANH SOS</Text>
+          </TouchableOpacity>
         </View>
         <TouchableOpacity style={styles.bellBtn}>
           <Ionicons name="notifications-outline" size={24} color={theme.colors.text.primary} />
@@ -250,7 +265,10 @@ export const CaregiverDashboard = () => {
               </View>
               <Text style={styles.cameraLabel}>{cam.label}</Text>
             </View>
-            <TouchableOpacity style={styles.expandBtn}>
+            <TouchableOpacity 
+              style={styles.expandBtn}
+              onPress={() => handleStopAlarmAndNavigate('PlaceholderScreen')}
+            >
               <MaterialIcons name="fullscreen" size={24} color={theme.colors.text.inverse} />
             </TouchableOpacity>
           </View>
