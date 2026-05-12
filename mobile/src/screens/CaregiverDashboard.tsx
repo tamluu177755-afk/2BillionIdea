@@ -142,9 +142,18 @@ export const CaregiverDashboard = () => {
           <Text style={styles.sosOverlayTitle}>CẢNH BÁO NGUY CẤP!</Text>
           <Text style={styles.sosOverlayName}>{sosAlertData.elderName} CẦN GIÚP ĐỠ!</Text>
           <Text style={styles.sosOverlaySub}>{sosAlertData.elderName} CẦN GIÚP ĐỠ! {sosAlertData.elderName} CẦN GIÚP ĐỠ!</Text>
+          
           <TouchableOpacity 
             style={styles.sosOverlayBtn}
-            onPress={() => {
+            onPress={async () => {
+              // Unlock and play sound on this user interaction for iOS Web
+              try {
+                await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+                if (soundRef.current) {
+                  await soundRef.current.playAsync();
+                }
+              } catch (e) {}
+
               navigation.navigate('SosAlert', { 
                 sosId: sosAlertData.sosId, 
                 elderName: sosAlertData.elderName, 

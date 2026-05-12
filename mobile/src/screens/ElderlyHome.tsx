@@ -8,6 +8,7 @@ import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
 import { triggerSos, confirmMedication } from '../services/api';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { Audio } from 'expo-av';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { useAppStore } from '../store/useAppStore';
@@ -50,6 +51,16 @@ export const ElderlyHome = () => {
 
   const handleSos = async () => {
     Vibration.vibrate(500);
+    // Enable audio context for iOS Web
+    try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        staysActiveInBackground: true,
+        playsInSilentModeIOS: true,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
+    } catch (e) {}
     navigation.navigate('SosSending', { elderName: elderUser?.name || 'Ông Minh' });
   };
 
