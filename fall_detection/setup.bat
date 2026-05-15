@@ -8,8 +8,8 @@
 echo Cai dat PyTorch voi CUDA 12.1 (phu hop voi GTX 1650)...
 conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia -y
 
-echo Cai dat Ultralytics (YOLOv8) va OpenCV...
-pip install ultralytics opencv-python numpy
+echo Cai dat Ultralytics (YOLOv8), OpenCV va Requests...
+pip install ultralytics opencv-python numpy requests
 
 echo.
 echo ========================================

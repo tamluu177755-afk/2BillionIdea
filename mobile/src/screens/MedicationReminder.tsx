@@ -186,7 +186,7 @@ export const MedicationReminder = () => {
         {/* Giant Progress Bar */}
         <View style={styles.progressContainer}>
           <View style={styles.progressHeader}>
-            <Text style={styles.progressLabel}>Đã uống {takenCount}/{medications.length} liều</Text>
+            <Text style={styles.progressLabel}>Đã uống {takenCount}/{meds.length} liều</Text>
             <Text style={styles.progressPercent}>{Math.round(progress)}%</Text>
           </View>
           <View style={styles.progressBg}>
@@ -195,7 +195,7 @@ export const MedicationReminder = () => {
         </View>
 
         {PERIODS.map(period => {
-          const items = medications.filter(m => m.period === period.key);
+          const items = meds.filter((m: any) => m.period === period.key);
           if (items.length === 0) return null;
 
           return (

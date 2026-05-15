@@ -149,7 +149,7 @@ export const ElderlyHome = () => {
         {/* Progress Summary */}
         <View style={styles.progressContainer}>
           <Text style={styles.progressText}>
-            {takenCount > 0 ? `✅ Đã uống ${takenCount}/${medications.length} liều` : '🕒 Chưa uống liều nào hôm nay'}
+            {takenCount > 0 ? `✅ Đã uống ${takenCount}/${meds.length} liều` : '🕒 Chưa uống liều nào hôm nay'}
           </Text>
         </View>
 

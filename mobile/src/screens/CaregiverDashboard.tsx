@@ -190,7 +190,7 @@ export const CaregiverDashboard = () => {
             <Text style={[styles.badgeText, { color: 'white' }]}>KÍCH HOẠT ÂM THANH SOS</Text>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.bellBtn} onPress={() => fetchData()}>
+        <TouchableOpacity style={styles.bellBtn} onPress={() => loadElderUser()}>
           <Ionicons name="refresh-circle" size={32} color={theme.colors.primary} />
         </TouchableOpacity>
       </View>
@@ -234,7 +234,7 @@ export const CaregiverDashboard = () => {
           <View style={styles.medProgressRow}>
             <View style={styles.medInfo}>
               <Text style={styles.medCountText}>{activeTab} đã uống</Text>
-              <Text style={styles.medCountBig}>{takenCount}/{medications.length}</Text>
+              <Text style={styles.medCountBig}>{takenCount}/{meds.length}</Text>
               <Text style={styles.medSubText}>liều thuốc hôm nay</Text>
             </View>
             <View style={styles.circularProgress}>
@@ -276,22 +276,7 @@ export const CaregiverDashboard = () => {
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Camera Fullscreen Modal */}
-      <Modal visible={!!fullscreenCam} transparent animationType="fade">
-        <View style={styles.modalBg}>
-           <Image source={{ uri: fullscreenCam?.image }} style={styles.fullscreenImg} resizeMode="contain" />
-           <TouchableOpacity style={styles.closeModal} onPress={() => setFullscreenCam(null)}>
-              <MaterialIcons name="close" size={40} color="white" />
-           </TouchableOpacity>
-           <View style={styles.modalOverlay}>
-              <Text style={styles.modalTitle}>{fullscreenCam?.label}</Text>
-              <View style={styles.aiTag}>
-                <MaterialIcons name="auto-awesome" size={14} color={theme.colors.success} />
-                <Text style={styles.aiTagText}>AI: {fullscreenCam?.status}</Text>
-              </View>
-           </View>
-        </View>
-      </Modal>
+
     </SafeAreaView>
   );
 };
