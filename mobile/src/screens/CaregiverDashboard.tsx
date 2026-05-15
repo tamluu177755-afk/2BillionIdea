@@ -1,15 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Image, ActivityIndicator, Dimensions, Modal
+  Image, ActivityIndicator, Dimensions, Animated, Easing
 } from 'react-native';
+import { Audio } from 'expo-av';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
-import { getSocket } from '../services/api';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Card } from '../components/Card';
-import { useStore } from '../store/useStore';
+import { useAppStore } from '../store/useAppStore';
 
 const CAMERAS = [
   { label: 'Phòng khách', status: 'Bình thường', image: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=600' },
@@ -18,41 +18,177 @@ const CAMERAS = [
 
 export const CaregiverDashboard = () => {
   const navigation = useNavigation<any>();
-  const { userData, medications, fetchData } = useStore();
   const [activeTab, setActiveTab] = useState('Bố');
   const [statusText, setStatusText] = useState('Đang hoạt động bình thường');
-  const [fullscreenCam, setFullscreenCam] = useState<any>(null);
+  const [sosAlertData, setSosAlertData] = useState<any>(null);
+  const flashAnim = useRef(new Animated.Value(0)).current;
+  const soundRef = useRef<Audio.Sound | null>(null);
+
+  const {
+    elderUser,
+    isLoading,
+    initSocket,
+    loadElderUser,
+    setupSocketListeners,
+    removeSocketListeners,
+    activeSos
+  } = useAppStore();
 
   useEffect(() => {
-    fetchData();
-    const sock = getSocket();
-    sock.on('medication_taken', (data: any) => {
-      setStatusText(`Vừa uống thuốc ${data.name} xong`);
-      fetchData();
-    });
-    sock.on('sos_alert', (data: any) => {
-      navigation.navigate('SosAlert', { 
-        sosId: data.sosId, 
-        elderName: activeTab === 'Bố' ? 'Ông Minh' : 'Bà Lan', 
-        locationAddr: data.locationAddr, 
-        createdAt: data.createdAt 
-      });
-    });
-    return () => { sock.off('medication_taken'); sock.off('sos_alert'); };
-  }, [activeTab]);
+    const playAlarm = async () => {
+      try {
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: 'https://assets.mixkit.co/active_storage/sfx/951/951-preview.mp3' },
+          { isLooping: true, volume: 1.0 }
+        );
+        soundRef.current = sound;
+        await sound.playAsync();
+      } catch (e) {
+        console.log('Error playing alarm', e);
+      }
+    };
 
-  const takenCount = medications.filter((m: any) => m.status === 'TAKEN').length;
-  const progress = medications.length > 0 ? (takenCount / medications.length) : 0;
+    const stopAlarm = async () => {
+      if (soundRef.current) {
+        await soundRef.current.stopAsync();
+        await soundRef.current.unloadAsync();
+        soundRef.current = null;
+      }
+    };
+
+    if (sosAlertData) {
+      playAlarm();
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(flashAnim, { toValue: 1, duration: 500, easing: Easing.linear, useNativeDriver: false }),
+          Animated.timing(flashAnim, { toValue: 0, duration: 500, easing: Easing.linear, useNativeDriver: false }),
+        ])
+      ).start();
+    } else {
+      stopAlarm();
+      flashAnim.setValue(0);
+    }
+
+    return () => {
+      stopAlarm();
+    };
+  }, [sosAlertData]);
+
+  const handleStopAlarmAndNavigate = async (screen: string, params?: any) => {
+    if (soundRef.current) {
+      try {
+        await soundRef.current.stopAsync();
+        await soundRef.current.unloadAsync();
+        soundRef.current = null;
+      } catch (e) {}
+    }
+    setSosAlertData(null);
+    navigation.navigate(screen, params);
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      // Initialize socket and listeners
+      initSocket();
+      loadElderUser();
+      
+      // Set up real-time listeners
+      const socket = useAppStore.getState().socket;
+      if (socket) {
+        // Listen for medication taken
+        socket.off('medication_taken');
+        socket.on('medication_taken', (data: any) => {
+          setStatusText(`Vừa uống thuốc ${data.name} xong`);
+          loadElderUser();
+        });
+
+        // Listen for SOS alert
+        socket.off('sos_alert');
+        socket.on('sos_alert', (data: any) => {
+          const elderName = activeTab === 'Bố' ? 'Ông Minh' : 'Bà Lan';
+          setSosAlertData({ ...data, elderName });
+        });
+
+        // Listen for SOS resolution to clear alert
+        socket.off('sos_resolved');
+        socket.on('sos_resolved', () => {
+          setSosAlertData(null);
+        });
+
+        socket.off('sos_cancelled');
+        socket.on('sos_cancelled', () => {
+          setSosAlertData(null);
+        });
+      }
+
+      return () => {
+        removeSocketListeners();
+      };
+    }, [activeTab, initSocket, loadElderUser, setupSocketListeners, removeSocketListeners, navigation])
+  );
+
+  const meds = elderUser?.elderProfile?.medications || [];
+  const takenCount = meds.filter((m: any) => m.status === 'TAKEN').length;
+  const progress = meds.length > 0 ? (takenCount / meds.length) : 0;
+
+  const backgroundColor = flashAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['rgba(255, 255, 255, 0)', 'rgba(255, 0, 0, 0.9)']
+  });
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
+      {sosAlertData && (
+        <Animated.View style={[styles.sosOverlay, { backgroundColor }]}>
+          <MaterialIcons name="report-problem" size={100} color="white" />
+          <Text style={styles.sosOverlayTitle}>CẢNH BÁO NGUY CẤP!</Text>
+          <Text style={styles.sosOverlayName}>{sosAlertData.elderName} CẦN GIÚP ĐỠ!</Text>
+          <Text style={styles.sosOverlaySub}>{sosAlertData.elderName} CẦN GIÚP ĐỠ! {sosAlertData.elderName} CẦN GIÚP ĐỠ!</Text>
+          
+          <TouchableOpacity 
+            style={styles.sosOverlayBtn}
+            onPress={() => {
+              handleStopAlarmAndNavigate('SosAlert', { 
+                sosId: sosAlertData.sosId, 
+                elderName: sosAlertData.elderName, 
+                locationAddr: sosAlertData.locationAddr, 
+                createdAt: sosAlertData.createdAt 
+              });
+            }}
+          >
+            <Text style={styles.sosOverlayBtnText}>XEM VỊ TRÍ & HỖ TRỢ NGAY</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.brand}>An Gia</Text>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>CON CÁI</Text>
-          </View>
+          <TouchableOpacity 
+            style={[styles.badge, { backgroundColor: theme.colors.primary }]}
+            onPress={async () => {
+              try {
+                await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+                const { sound } = await Audio.Sound.createAsync(
+                  { uri: 'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3' }, // Short beep to unlock
+                  { shouldPlay: true, volume: 0.1 }
+                );
+                Alert.alert("Thông báo", "Hệ thống âm thanh khẩn cấp đã sẵn sàng.");
+              } catch (e) {}
+            }}
+          >
+            <Text style={[styles.badgeText, { color: 'white' }]}>KÍCH HOẠT ÂM THANH SOS</Text>
+          </TouchableOpacity>
         </View>
         <TouchableOpacity style={styles.bellBtn} onPress={() => fetchData()}>
           <Ionicons name="refresh-circle" size={32} color={theme.colors.primary} />
@@ -89,7 +225,7 @@ export const CaregiverDashboard = () => {
         {/* Med Progress Section */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Theo dõi thuốc</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('MedReminder')}>
+          <TouchableOpacity onPress={() => navigation.navigate('CaregiverMedicationDetail')}>
             <Text style={styles.sectionLink}>Xem chi tiết</Text>
           </TouchableOpacity>
         </View>
@@ -128,7 +264,10 @@ export const CaregiverDashboard = () => {
               </View>
               <Text style={styles.cameraLabel}>{cam.label}</Text>
             </View>
-            <TouchableOpacity style={styles.expandBtn} onPress={() => setFullscreenCam(cam)}>
+            <TouchableOpacity 
+              style={styles.expandBtn}
+              onPress={() => handleStopAlarmAndNavigate('PlaceholderScreen')}
+            >
               <MaterialIcons name="fullscreen" size={24} color={theme.colors.text.inverse} />
             </TouchableOpacity>
           </View>
@@ -204,9 +343,47 @@ const styles = StyleSheet.create({
   aiTagText: { fontSize: 10, fontWeight: 'bold', color: theme.colors.success },
   cameraLabel: { fontSize: 16, fontWeight: 'bold', color: theme.colors.text.inverse },
   expandBtn: { position: 'absolute', top: 12, right: 12, backgroundColor: 'rgba(0,0,0,0.4)', padding: 6, borderRadius: 8 },
-  modalBg: { flex: 1, backgroundColor: 'black', justifyContent: 'center' },
-  fullscreenImg: { width: '100%', height: '80%' },
-  closeModal: { position: 'absolute', top: 50, right: 20 },
-  modalOverlay: { position: 'absolute', bottom: 50, left: 20 },
-  modalTitle: { color: 'white', fontSize: 24, fontWeight: 'bold', marginBottom: 8 },
+  sosOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 9999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing.xl,
+  },
+  sosOverlayTitle: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: 'white',
+    marginTop: theme.spacing.l,
+    textAlign: 'center',
+  },
+  sosOverlayName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: 'white',
+    marginTop: theme.spacing.m,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+  },
+  sosOverlaySub: {
+    fontSize: 16,
+    color: 'white',
+    marginTop: theme.spacing.s,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    opacity: 0.9,
+  },
+  sosOverlayBtn: {
+    backgroundColor: 'white',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: theme.borderRadius.l,
+    marginTop: theme.spacing.xxl,
+    ...theme.shadow,
+  },
+  sosOverlayBtnText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FF0000',
+  },
 });

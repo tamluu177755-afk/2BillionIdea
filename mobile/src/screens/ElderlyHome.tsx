@@ -1,66 +1,87 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Animated, Easing, Vibration
+  Animated, Easing, Vibration, Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
-import { triggerSos } from '../services/api';
-import { useNavigation } from '@react-navigation/native';
+import { triggerSos, confirmMedication } from '../services/api';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { Audio } from 'expo-av';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
-import { useStore } from '../store/useStore';
+import { useAppStore } from '../store/useAppStore';
 
 export const ElderlyHome = () => {
   const navigation = useNavigation<any>();
-  const { userData, medications, fetchData, markMedAsTaken } = useStore();
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const sosTimer = useRef<any>(null);
+  const [loadingMed, setLoadingMed] = useState(false);
 
-  useEffect(() => {
-    fetchData();
-    // SOS button pulse animation
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.08, duration: 1000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ])
-    ).start();
-  }, []);
+  // Get state from store
+  const {
+    elderUser,
+    isLoading,
+    initSocket,
+    loadElderUser,
+    setupSocketListeners,
+    removeSocketListeners
+  } = useAppStore();
 
-  const handleSosPressIn = () => {
-    Vibration.vibrate([0, 100], true);
-    sosTimer.current = setTimeout(() => {
-      handleSos();
-    }, 2000);
-  };
+  useFocusEffect(
+    React.useCallback(() => {
+      // Initialize socket and load data when screen comes into focus
+      initSocket();
+      loadElderUser();
+      setupSocketListeners();
 
-  const handleSosPressOut = () => {
-    Vibration.cancel();
-    if (sosTimer.current) {
-      clearTimeout(sosTimer.current);
-    }
-  };
+      // SOS button pulse animation
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.08, duration: 1000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 1000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        ])
+      ).start();
+
+      return () => {
+        removeSocketListeners();
+      };
+    }, [initSocket, loadElderUser, setupSocketListeners, removeSocketListeners])
+  );
 
   const handleSos = async () => {
     Vibration.vibrate(500);
-    navigation.navigate('SosSending', { elderName: userData?.name || 'Ông Minh' });
+    // Enable audio context for iOS Web
     try {
-      if (userData?.elderProfile?.id) {
-        await triggerSos(userData.elderProfile.id, 'Vị trí hiện tại của ông');
-      }
-    } catch (e) {
-      console.log('SOS API error', e);
-    }
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        staysActiveInBackground: true,
+        playsInSilentModeIOS: true,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
+    } catch (e) {}
+    navigation.navigate('SosSending', { elderName: elderUser?.name || 'Ông Minh' });
   };
 
   const handleConfirmMed = async (medId: string) => {
-    await markMedAsTaken(medId);
+    setLoadingMed(true);
+    try {
+      await confirmMedication(medId);
+      // Reload data to show updated status
+      await loadElderUser();
+    } catch (e) {
+      Alert.alert('Lỗi', 'Không thể xác nhận uống thuốc');
+      console.error('Confirm error', e);
+    } finally {
+      setLoadingMed(false);
+    }
   };
 
-  const nextMed = medications.find((m: any) => m.status === 'PENDING');
-  const takenCount = medications.filter((m: any) => m.status === 'TAKEN').length;
+  const profile = elderUser?.elderProfile;
+  const meds = profile?.medications || [];
+  const nextMed = meds.find((m: any) => m.status === 'PENDING');
+  const takenCount = meds.filter((m: any) => m.status === 'TAKEN').length;
 
   const getHourGreeting = () => {
     const h = new Date().getHours();
@@ -79,10 +100,10 @@ export const ElderlyHome = () => {
           </View>
           <View>
             <Text style={styles.greeting}>{getHourGreeting()}</Text>
-            <Text style={styles.name}>{userData?.name || 'Ông Minh'}</Text>
+            <Text style={styles.name}>{elderUser?.name || 'Ông Minh'}</Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.bellBtn} onPress={() => fetchData()}>
+        <TouchableOpacity style={styles.bellBtn} onPress={() => loadElderUser()}>
           <Ionicons name="refresh-circle" size={40} color={theme.colors.primary} />
         </TouchableOpacity>
       </View>
@@ -95,14 +116,13 @@ export const ElderlyHome = () => {
           <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
             <TouchableOpacity 
               style={styles.sosBtn} 
-              onPressIn={handleSosPressIn}
-              onPressOut={handleSosPressOut}
+              onPress={handleSos}
               activeOpacity={0.7}
             >
               <Text style={styles.sosText}>SOS</Text>
             </TouchableOpacity>
           </Animated.View>
-          <Text style={styles.sosHint}>Nhấn giữ 2 giây để gọi cứu trợ</Text>
+          <Text style={styles.sosHint}>Nhấn để gọi cứu trợ khẩn cấp</Text>
         </View>
 
         {/* Quick Med Widget */}
@@ -116,10 +136,11 @@ export const ElderlyHome = () => {
               </View>
             </View>
             <Button 
-              title="ĐÃ UỐNG" 
+              title={loadingMed ? "Đang xử lý..." : "ĐÃ UỐNG"} 
               variant="success" 
               size="large" 
               onPress={() => handleConfirmMed(nextMed.id)}
+              disabled={loadingMed}
               style={styles.medBtn}
             />
           </Card>
@@ -137,11 +158,11 @@ export const ElderlyHome = () => {
 
       {/* Simplified Navigation */}
       <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('MedReminder')}>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('MedicationReminder')}>
           <MaterialIcons name="medication" size={32} color={theme.colors.primary} />
           <Text style={styles.navText}>Lịch thuốc</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('ElderProfile')}>
+        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('ElderlyProfile')}>
           <MaterialIcons name="person" size={32} color={theme.colors.primary} />
           <Text style={styles.navText}>Hồ sơ</Text>
         </TouchableOpacity>

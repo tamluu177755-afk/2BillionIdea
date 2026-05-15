@@ -2,23 +2,57 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, Animated, TouchableOpacity, Alert, Easing, Linking, ActivityIndicator, Vibration
 } from 'react-native';
+import { Audio } from 'expo-av';
+import * as Speech from 'expo-speech';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
-import { cancelSos } from '../services/api';
+import { cancelSos, triggerSos } from '../services/api';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { Button } from '../components/Button';
+import { useAppStore } from '../store/useAppStore';
 
 export const SosSendingScreen = () => {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
-  const { sosId, elderName } = route.params || {};
+  const { elderName } = route.params || {};
+  const [sosId, setSosId] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(3);
   const [isSent, setIsSent] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const timerRef = useRef<any>(null);
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const speechIntervalRef = useRef<any>(null);
+
+  const { elderUser } = useAppStore();
 
   useEffect(() => {
+    // Play urgent siren sound
+    const playAlarm = async () => {
+      try {
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: 'https://assets.mixkit.co/active_storage/sfx/951/951-preview.mp3' }, // Siren
+          { isLooping: true, volume: 1.0 }
+        );
+        soundRef.current = sound;
+        await sound.playAsync();
+      } catch (e) {
+        console.log('Error playing alarm', e);
+      }
+    };
+
+    const startSpeechAlert = () => {
+      const message = `${elderUser?.name || 'Ông'} cần được hỗ trợ.`;
+      const speak = () => {
+        Speech.speak(message, { language: 'vi-VN', rate: 0.9, pitch: 1.0 });
+      };
+      speak();
+      speechIntervalRef.current = setInterval(speak, 5000);
+    };
+
+    playAlarm();
+    startSpeechAlert();
+
     // Pulse animation
     Animated.loop(
       Animated.sequence([
@@ -41,29 +75,57 @@ export const SosSendingScreen = () => {
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      if (speechIntervalRef.current) clearInterval(speechIntervalRef.current);
+      Speech.stop();
+      if (soundRef.current) {
+        soundRef.current.stopAsync();
+        soundRef.current.unloadAsync();
+      }
     };
   }, []);
 
-  const triggerEmergency = () => {
+  const triggerEmergency = async () => {
     setIsSent(true);
     Vibration.vibrate([0, 500, 200, 500], true);
-    // 1. Call primary contact
+    
+    // 1. Send SOS signal to backend/caregiver AFTER countdown
+    try {
+      if (elderUser?.elderProfile?.id) {
+        const sos = await triggerSos(elderUser.elderProfile.id, 'Vị trí hiện tại của ông');
+        setSosId(sos.id);
+      }
+    } catch (e) {
+      console.log('SOS API error', e);
+    }
+
+    // 2. Call primary contact
     Linking.openURL('tel:0962664000').catch(() => {});
   };
 
   const handleCancel = async () => {
-    if (isSent) {
-      Alert.alert('Đã gửi cứu trợ', 'Tín hiệu đã được gửi tới người thân.');
-      return;
+    if (speechIntervalRef.current) clearInterval(speechIntervalRef.current);
+    Speech.stop();
+    if (soundRef.current) {
+      await soundRef.current.stopAsync();
     }
     Vibration.cancel();
     if (timerRef.current) clearInterval(timerRef.current);
     try {
-      if (sosId) await cancelSos(sosId);
+      if (sosId && !isSent) await cancelSos(sosId);
       navigation.goBack();
     } catch (e) {
       navigation.goBack();
     }
+  };
+
+  const handleReturnHome = async () => {
+    if (speechIntervalRef.current) clearInterval(speechIntervalRef.current);
+    Speech.stop();
+    if (soundRef.current) {
+      await soundRef.current.stopAsync();
+    }
+    Vibration.cancel();
+    navigation.navigate('ElderlyHome');
   };
 
   return (
@@ -105,9 +167,15 @@ export const SosSendingScreen = () => {
           <Text style={styles.cancelText}>HỦY (Nếu nhấn nhầm)</Text>
         </TouchableOpacity>
       ) : (
-        <View style={styles.sentBadge}>
-          <ActivityIndicator color={theme.colors.text.inverse} size="large" />
-          <Text style={styles.sentBadgeText}>Đang giữ kết nối...</Text>
+        <View style={styles.sentContainer}>
+          <View style={styles.sentBadge}>
+            <ActivityIndicator color={theme.colors.text.inverse} size="large" />
+            <Text style={styles.sentBadgeText}>Đang giữ kết nối...</Text>
+          </View>
+          
+          <TouchableOpacity style={styles.homeBtn} onPress={handleReturnHome}>
+            <Text style={styles.homeBtnText}>QUAY LẠI TRANG CHỦ</Text>
+          </TouchableOpacity>
         </View>
       )}
     </SafeAreaView>
@@ -159,6 +227,12 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.l, marginBottom: theme.spacing.xl 
   },
   cancelText: { fontSize: theme.typography.elder.body, fontWeight: 'bold', color: theme.colors.text.primary },
+  sentContainer: { width: '100%', alignItems: 'center', marginBottom: theme.spacing.xl },
   sentBadge: { alignItems: 'center', gap: 10, marginBottom: theme.spacing.xl },
   sentBadgeText: { fontSize: theme.typography.elder.body, color: theme.colors.text.inverse, fontWeight: 'bold' },
+  homeBtn: { 
+    backgroundColor: 'rgba(255,255,255,0.2)', paddingVertical: 18, paddingHorizontal: 40, 
+    borderRadius: theme.borderRadius.l, borderWidth: 2, borderColor: theme.colors.surface
+  },
+  homeBtnText: { fontSize: theme.typography.elder.body, fontWeight: 'bold', color: theme.colors.text.inverse },
 });

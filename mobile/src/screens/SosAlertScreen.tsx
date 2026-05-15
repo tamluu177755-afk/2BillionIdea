@@ -129,3 +129,4 @@ const styles = StyleSheet.create({
   resolveBtn: { marginTop: theme.spacing.m, alignItems: 'center', padding: theme.spacing.m },
   resolveText: { color: theme.colors.text.inverse, fontSize: 14, textDecorationLine: 'underline' },
 });
+
