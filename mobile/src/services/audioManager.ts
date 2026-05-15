@@ -184,3 +184,17 @@ class WebAudioManager {
 // Singleton — dùng chung toàn app
 export const webAudioManager = new WebAudioManager();
 
+// Tự động gắn listener để unlock Web Audio API ngay khi có bất kỳ tương tác chạm/click nào
+// Điều này giải quyết triệt để lỗi Safari iOS chặn âm thanh trên cả màn hình Ông Bà và Con Cháu
+if (isWeb && typeof window !== 'undefined' && typeof document !== 'undefined') {
+  const handleGlobalInteraction = () => {
+    webAudioManager.unlock().catch(console.warn);
+    // Sau khi unlock thành công, gỡ bỏ listener để tránh lặp lại
+    document.removeEventListener('touchstart', handleGlobalInteraction);
+    document.removeEventListener('click', handleGlobalInteraction);
+  };
+
+  // Lắng nghe ở cấp độ toàn cục (window/document)
+  document.addEventListener('touchstart', handleGlobalInteraction, { once: true, passive: true });
+  document.addEventListener('click', handleGlobalInteraction, { once: true, passive: true });
+}
