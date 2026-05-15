@@ -156,7 +156,7 @@ export const SosSendingScreen = () => {
           <Animated.View style={[styles.sosRing, { transform: [{ scale: pulseAnim }] }]} />
           <View style={[styles.sosCircle, isSent && styles.sosCircleSent]}>
             {isSent ? (
-              <MaterialIcons name="emergency-share" size={80} color={theme.colors.text.inverse} />
+              <MaterialIcons name="emergency-share" size={60} color={theme.colors.text.inverse} />
             ) : (
               <Text style={styles.countdownText}>{countdown}</Text>
             )}
@@ -167,13 +167,13 @@ export const SosSendingScreen = () => {
         <View style={styles.infoContainer}>
           <View style={styles.avatarContainer}>
             <View style={styles.avatar}>
-               <MaterialIcons name="person" size={50} color={theme.colors.text.secondary} />
+               <MaterialIcons name="person" size={40} color={theme.colors.text.secondary} />
             </View>
             <View style={styles.callBadge}>
-              <MaterialIcons name="call" size={24} color={theme.colors.text.inverse} />
+              <MaterialIcons name="call" size={18} color={theme.colors.text.inverse} />
             </View>
           </View>
-          <Text style={styles.contactName}>Nhung - Con gái</Text>
+          <Text style={styles.contactName}>Tuấn - Con trai</Text>
           <Text style={styles.statusText}>
             {isSent ? 'Vị trí của ông đã được chia sẻ.\nCon đang đến với ông.' : 'Hệ thống đang chuẩn bị kết nối...'}
           </Text>
@@ -213,51 +213,51 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.m,
     paddingBottom: theme.spacing.xl,
   },
-  header: { marginTop: theme.spacing.xxl, marginBottom: theme.spacing.l },
+  header: { marginTop: theme.spacing.l, marginBottom: theme.spacing.s },
   title: {
     fontSize: theme.typography.elder.title, fontWeight: '900',
-    color: theme.colors.primary, textAlign: 'center', lineHeight: 40
+    color: theme.colors.primary, textAlign: 'center', lineHeight: 34
   },
   titleSent: { color: theme.colors.text.inverse },
   sosWrapper: {
-    width: 240, height: 240, alignItems: 'center', justifyContent: 'center',
-    marginBottom: theme.spacing.xl
+    width: 200, height: 200, alignItems: 'center', justifyContent: 'center',
+    marginBottom: theme.spacing.l
   },
   sosRing: {
-    position: 'absolute', width: '100%', height: '100%', borderRadius: 120,
+    position: 'absolute', width: '100%', height: '100%', borderRadius: 100,
     backgroundColor: 'rgba(227, 45, 45, 0.15)'
   },
   sosCircle: {
-    width: 180, height: 180, borderRadius: 90, backgroundColor: theme.colors.surface,
-    alignItems: 'center', justifyContent: 'center', elevation: 10,
-    borderWidth: 10, borderColor: theme.colors.primary,
+    width: 150, height: 150, borderRadius: 75, backgroundColor: theme.colors.surface,
+    alignItems: 'center', justifyContent: 'center', elevation: 8,
+    borderWidth: 8, borderColor: theme.colors.primary,
   },
   sosCircleSent: { backgroundColor: theme.colors.primary, borderColor: theme.colors.surface },
-  countdownText: { fontSize: 80, fontWeight: '900', color: theme.colors.primary },
+  countdownText: { fontSize: 64, fontWeight: '900', color: theme.colors.primary },
 
   // Contact info — no flex:1, chiều cao tự nhiên
-  infoContainer: { alignItems: 'center', marginBottom: theme.spacing.xl },
-  avatarContainer: { position: 'relative', marginBottom: theme.spacing.m },
+  infoContainer: { alignItems: 'center', marginBottom: theme.spacing.m },
+  avatarContainer: { position: 'relative', marginBottom: theme.spacing.s },
   avatar: {
-    width: 100, height: 100, borderRadius: 50, backgroundColor: theme.colors.neutral,
+    width: 80, height: 80, borderRadius: 40, backgroundColor: theme.colors.neutral,
     alignItems: 'center', justifyContent: 'center', borderWidth: 4, borderColor: theme.colors.surface
   },
   callBadge: {
-    position: 'absolute', bottom: 0, right: 0,
-    width: 40, height: 40, borderRadius: 20, backgroundColor: theme.colors.success,
+    position: 'absolute', bottom: 0, right: -5,
+    width: 32, height: 32, borderRadius: 16, backgroundColor: theme.colors.success,
     alignItems: 'center', justifyContent: 'center'
   },
   contactName: {
     fontSize: theme.typography.elder.header, fontWeight: 'bold',
-    marginBottom: theme.spacing.s,
+    marginBottom: 4,
   },
   statusText: {
     fontSize: theme.typography.elder.body, color: theme.colors.text.secondary,
-    textAlign: 'center', lineHeight: 30
+    textAlign: 'center', lineHeight: 24
   },
 
   // Action area — luôn nằm dưới cùng, không chồng chéo
-  actionArea: { width: '100%', alignItems: 'center', gap: theme.spacing.l },
+  actionArea: { width: '100%', alignItems: 'center', gap: theme.spacing.m },
   cancelBtn: {
     backgroundColor: theme.colors.neutral, paddingVertical: 20, paddingHorizontal: 40,
     borderRadius: theme.borderRadius.l,
