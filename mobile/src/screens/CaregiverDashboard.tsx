@@ -21,6 +21,7 @@ export const CaregiverDashboard = () => {
   const [activeTab, setActiveTab] = useState('Bố');
   const [statusText, setStatusText] = useState('Đang hoạt động bình thường');
   const [sosAlertData, setSosAlertData] = useState<any>(null);
+  const [liveFrame, setLiveFrame] = useState<string | null>(null);
   const flashAnim = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
 
@@ -118,6 +119,13 @@ export const CaregiverDashboard = () => {
         socket.off('sos_cancelled');
         socket.on('sos_cancelled', () => {
           setSosAlertData(null);
+        });
+
+        socket.off('video_frame');
+        socket.on('video_frame', (data: any) => {
+          if (data && data.frame) {
+            setLiveFrame(data.frame);
+          }
         });
       }
 
@@ -254,24 +262,29 @@ export const CaregiverDashboard = () => {
           </View>
         </View>
 
-        {CAMERAS.map((cam, idx) => (
-          <View key={idx} style={styles.cameraWrapper}>
-            <Image source={{ uri: cam.image }} style={styles.cameraImg} />
-            <View style={styles.cameraOverlay}>
-              <View style={styles.aiTag}>
-                <MaterialIcons name="auto-awesome" size={14} color={theme.colors.success} />
-                <Text style={styles.aiTagText}>AI: {cam.status}</Text>
+        {CAMERAS.map((cam, idx) => {
+          const isLiveCam = idx === 0 && liveFrame;
+          const imageUri = isLiveCam ? `data:image/jpeg;base64,${liveFrame}` : cam.image;
+          
+          return (
+            <View key={idx} style={styles.cameraWrapper}>
+              <Image source={{ uri: imageUri }} style={styles.cameraImg} />
+              <View style={styles.cameraOverlay}>
+                <View style={styles.aiTag}>
+                  <MaterialIcons name="auto-awesome" size={14} color={theme.colors.success} />
+                  <Text style={styles.aiTagText}>AI: {cam.status}</Text>
+                </View>
+                <Text style={styles.cameraLabel}>{cam.label}</Text>
               </View>
-              <Text style={styles.cameraLabel}>{cam.label}</Text>
+              <TouchableOpacity 
+                style={styles.expandBtn}
+                onPress={() => handleStopAlarmAndNavigate('PlaceholderScreen')}
+              >
+                <MaterialIcons name="fullscreen" size={24} color={theme.colors.text.inverse} />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity 
-              style={styles.expandBtn}
-              onPress={() => handleStopAlarmAndNavigate('PlaceholderScreen')}
-            >
-              <MaterialIcons name="fullscreen" size={24} color={theme.colors.text.inverse} />
-            </TouchableOpacity>
-          </View>
-        ))}
+          );
+        })}
 
         <View style={{ height: 40 }} />
       </ScrollView>

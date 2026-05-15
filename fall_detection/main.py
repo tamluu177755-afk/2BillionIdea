@@ -3,6 +3,8 @@ import time
 import numpy as np
 import requests
 import threading
+import socketio
+import base64
 from ultralytics import YOLO
 from fall_detector import FallDetector
 
@@ -32,6 +34,16 @@ def main():
         print("!!! CẢNH BÁO: KHÔNG THỂ LẤY ĐƯỢC THÔNG TIN NGƯỜI CAO TUỔI !!!")
         print("Hệ thống vẫn sẽ chạy, nhưng sẽ không gửi được báo động SOS lên máy chủ.")
         print("Vui lòng đảm bảo Backend đang chạy ở cổng 3000.")
+
+    # Khởi tạo kết nối Socket.IO tới Backend
+    sio = socketio.Client()
+    try:
+        socket_url = API_BASE_URL.replace("/api", "")
+        print(f"Đang kết nối Socket.IO tới {socket_url}...")
+        sio.connect(socket_url)
+        print("Kết nối Socket.IO thành công!")
+    except Exception as e:
+        print(f"Không thể kết nối Socket.IO: {e}")
 
     # Khởi tạo model YOLOv8 pose (n = nano, nhẹ nhất chạy cực nhanh trên GPU/CPU)
     print("Đang tải model YOLOv8n-pose...")
@@ -71,6 +83,7 @@ def main():
     cv2.createTrackbar("Vel Thresh (x10)", "Real-time Fall Detection (YOLOv8-Pose)", 8, 30, nothing)
     
     prev_time = time.time()
+    frame_count = 0
     
     # Quản lý thời gian gửi cảnh báo SOS cho từng người để chống spam API
     last_alert_time = {}
@@ -176,6 +189,20 @@ def main():
         # Hiển thị frame
         cv2.imshow("Real-time Fall Detection (YOLOv8-Pose)", annotated_frame)
         
+        # Gửi frame ảnh qua Socket.io để hiển thị trên web
+        frame_count += 1
+        if sio.connected and frame_count % 3 == 0:  # Gửi khoảng 10 fps (nếu cam 30fps)
+            try:
+                # Resize ảnh xuống 640x480 để giảm băng thông
+                small_frame = cv2.resize(annotated_frame, (640, 480))
+                # Encode sang JPEG với chất lượng 70%
+                ret_enc, buffer = cv2.imencode('.jpg', small_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
+                if ret_enc:
+                    b64_str = base64.b64encode(buffer).decode('utf-8')
+                    sio.emit('video_frame', {'frame': b64_str})
+            except Exception as e:
+                pass
+        
         # Nhấn 'q' để thoát
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
@@ -183,6 +210,8 @@ def main():
     # Giải phóng camera và cửa sổ
     cap.release()
     cv2.destroyAllWindows()
+    if sio.connected:
+        sio.disconnect()
 
 if __name__ == "__main__":
     main()
