@@ -9,6 +9,7 @@ import { SosSendingScreen } from '../screens/SosSendingScreen';
 import { MedicationReminder } from '../screens/MedicationReminder';
 import { ElderlyProfile } from '../screens/ElderlyProfile';
 import { CaregiverDashboard } from '../screens/CaregiverDashboard';
+import { CaregiverProfile } from '../screens/CaregiverProfile';
 import { CaregiverMedicationDetail } from '../screens/CaregiverMedicationDetail';
 import { SosAlertScreen } from '../screens/SosAlertScreen';
 
@@ -32,6 +33,7 @@ export const AppNavigator = () => {
 
         {/* Caregiver Module */}
         <Stack.Screen name="CaregiverDashboard" component={CaregiverDashboard} />
+        <Stack.Screen name="CaregiverProfile" component={CaregiverProfile} />
         <Stack.Screen name="CaregiverMedicationDetail" component={CaregiverMedicationDetail} />
         <Stack.Screen name="SosAlert" component={SosAlertScreen} options={{ animation: 'fade', gestureEnabled: false }} />
       </Stack.Navigator>

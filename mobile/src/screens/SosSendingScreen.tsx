@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, Animated, TouchableOpacity, Alert, Easing, Linking, ActivityIndicator, Vibration
+  View, Text, StyleSheet, ScrollView, Animated, TouchableOpacity, Alert, Easing, Linking, ActivityIndicator, Vibration
 } from 'react-native';
 import { Audio } from 'expo-av';
 import * as Speech from 'expo-speech';
@@ -130,109 +130,138 @@ export const SosSendingScreen = () => {
 
   return (
     <SafeAreaView style={[styles.safe, isSent && styles.safeSent]}>
-      <View style={styles.header}>
-        <Text style={[styles.title, isSent && styles.titleSent]}>
-          {isSent ? 'ĐANG GỌI CỨU TRỢ\nKHẨN CẤP' : 'CHUẨN BỊ GỬI\nYÊU CẦU SOS'}
-        </Text>
-      </View>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+        {/* Title */}
+        <View style={styles.header}>
+          <Text style={[styles.title, isSent && styles.titleSent]}>
+            {isSent ? 'ĐANG GỌI CỨU TRỢ\nKHẨN CẤP' : 'CHUẨN BỊ GỬI\nYÊU CẦU SOS'}
+          </Text>
+        </View>
 
-      <View style={styles.sosWrapper}>
-        <Animated.View style={[styles.sosRing, { transform: [{ scale: pulseAnim }] }]} />
-        <View style={[styles.sosCircle, isSent && styles.sosCircleSent]}>
-          {isSent ? (
-            <MaterialIcons name="emergency-share" size={80} color={theme.colors.text.inverse} />
+        {/* SOS Circle */}
+        <View style={styles.sosWrapper}>
+          <Animated.View style={[styles.sosRing, { transform: [{ scale: pulseAnim }] }]} />
+          <View style={[styles.sosCircle, isSent && styles.sosCircleSent]}>
+            {isSent ? (
+              <MaterialIcons name="emergency-share" size={80} color={theme.colors.text.inverse} />
+            ) : (
+              <Text style={styles.countdownText}>{countdown}</Text>
+            )}
+          </View>
+        </View>
+
+        {/* Contact Info */}
+        <View style={styles.infoContainer}>
+          <View style={styles.avatarContainer}>
+            <View style={styles.avatar}>
+               <MaterialIcons name="person" size={50} color={theme.colors.text.secondary} />
+            </View>
+            <View style={styles.callBadge}>
+              <MaterialIcons name="call" size={24} color={theme.colors.text.inverse} />
+            </View>
+          </View>
+          <Text style={styles.contactName}>Nhung - Con gái</Text>
+          <Text style={styles.statusText}>
+            {isSent ? 'Vị trí của ông đã được chia sẻ.\nCon đang đến với ông.' : 'Hệ thống đang chuẩn bị kết nối...'}
+          </Text>
+        </View>
+
+        {/* Action area — always below all text */}
+        <View style={styles.actionArea}>
+          {!isSent ? (
+            <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
+              <Text style={styles.cancelText}>HỦY (Nếu nhấn nhầm)</Text>
+            </TouchableOpacity>
           ) : (
-            <Text style={styles.countdownText}>{countdown}</Text>
+            <>
+              <View style={styles.sentBadge}>
+                <ActivityIndicator color={theme.colors.text.inverse} size="large" />
+                <Text style={styles.sentBadgeText}>Đang giữ kết nối...</Text>
+              </View>
+
+              <TouchableOpacity style={styles.homeBtn} onPress={handleReturnHome}>
+                <Text style={styles.homeBtnText}>QUAY LẠI TRANG CHỦ</Text>
+              </TouchableOpacity>
+            </>
           )}
         </View>
-      </View>
 
-      <View style={styles.infoContainer}>
-        <View style={styles.avatarContainer}>
-          <View style={styles.avatar}>
-             <MaterialIcons name="person" size={50} color={theme.colors.text.secondary} />
-          </View>
-          <View style={styles.callBadge}>
-            <MaterialIcons name="call" size={24} color={theme.colors.text.inverse} />
-          </View>
-        </View>
-        <Text style={styles.contactName}>Nhung - Con gái</Text>
-        <Text style={styles.statusText}>
-          {isSent ? 'Vị trí của ông đã được chia sẻ.\nCon đang đến với ông.' : 'Hệ thống đang chuẩn bị kết nối...'}
-        </Text>
-      </View>
-
-      {!isSent ? (
-        <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
-          <Text style={styles.cancelText}>HỦY (Nếu nhấn nhầm)</Text>
-        </TouchableOpacity>
-      ) : (
-        <View style={styles.sentContainer}>
-          <View style={styles.sentBadge}>
-            <ActivityIndicator color={theme.colors.text.inverse} size="large" />
-            <Text style={styles.sentBadgeText}>Đang giữ kết nối...</Text>
-          </View>
-          
-          <TouchableOpacity style={styles.homeBtn} onPress={handleReturnHome}>
-            <Text style={styles.homeBtnText}>QUAY LẠI TRANG CHỦ</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      </ScrollView>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#FFF0F0', alignItems: 'center', padding: theme.spacing.m },
+  safe: { flex: 1, backgroundColor: '#FFF0F0' },
   safeSent: { backgroundColor: theme.colors.primary },
-  header: { marginTop: theme.spacing.xxl, marginBottom: theme.spacing.xxl },
-  title: { 
-    fontSize: theme.typography.elder.title, fontWeight: '900', 
-    color: theme.colors.primary, textAlign: 'center', lineHeight: 40 
+  scroll: {
+    flexGrow: 1,
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.m,
+    paddingBottom: theme.spacing.xl,
+  },
+  header: { marginTop: theme.spacing.xxl, marginBottom: theme.spacing.l },
+  title: {
+    fontSize: theme.typography.elder.title, fontWeight: '900',
+    color: theme.colors.primary, textAlign: 'center', lineHeight: 40
   },
   titleSent: { color: theme.colors.text.inverse },
-  sosWrapper: { 
-    width: 240, height: 240, alignItems: 'center', justifyContent: 'center', 
-    marginBottom: theme.spacing.xxl 
+  sosWrapper: {
+    width: 240, height: 240, alignItems: 'center', justifyContent: 'center',
+    marginBottom: theme.spacing.xl
   },
-  sosRing: { 
-    position: 'absolute', width: '100%', height: '100%', borderRadius: 120, 
-    backgroundColor: 'rgba(227, 45, 45, 0.15)' 
+  sosRing: {
+    position: 'absolute', width: '100%', height: '100%', borderRadius: 120,
+    backgroundColor: 'rgba(227, 45, 45, 0.15)'
   },
-  sosCircle: { 
+  sosCircle: {
     width: 180, height: 180, borderRadius: 90, backgroundColor: theme.colors.surface,
     alignItems: 'center', justifyContent: 'center', elevation: 10,
     borderWidth: 10, borderColor: theme.colors.primary,
   },
   sosCircleSent: { backgroundColor: theme.colors.primary, borderColor: theme.colors.surface },
   countdownText: { fontSize: 80, fontWeight: '900', color: theme.colors.primary },
-  infoContainer: { alignItems: 'center', flex: 1 },
+
+  // Contact info — no flex:1, chiều cao tự nhiên
+  infoContainer: { alignItems: 'center', marginBottom: theme.spacing.xl },
   avatarContainer: { position: 'relative', marginBottom: theme.spacing.m },
-  avatar: { 
+  avatar: {
     width: 100, height: 100, borderRadius: 50, backgroundColor: theme.colors.neutral,
     alignItems: 'center', justifyContent: 'center', borderWidth: 4, borderColor: theme.colors.surface
   },
-  callBadge: { 
-    position: 'absolute', bottom: 0, right: 0, 
+  callBadge: {
+    position: 'absolute', bottom: 0, right: 0,
     width: 40, height: 40, borderRadius: 20, backgroundColor: theme.colors.success,
     alignItems: 'center', justifyContent: 'center'
   },
-  contactName: { fontSize: theme.typography.elder.header, fontWeight: 'bold', marginBottom: theme.spacing.s },
-  statusText: { 
-    fontSize: theme.typography.elder.body, color: theme.colors.text.secondary, 
-    textAlign: 'center', lineHeight: 30 
+  contactName: {
+    fontSize: theme.typography.elder.header, fontWeight: 'bold',
+    marginBottom: theme.spacing.s,
   },
-  cancelBtn: { 
-    backgroundColor: theme.colors.neutral, paddingVertical: 20, paddingHorizontal: 40, 
-    borderRadius: theme.borderRadius.l, marginBottom: theme.spacing.xl 
+  statusText: {
+    fontSize: theme.typography.elder.body, color: theme.colors.text.secondary,
+    textAlign: 'center', lineHeight: 30
+  },
+
+  // Action area — luôn nằm dưới cùng, không chồng chéo
+  actionArea: { width: '100%', alignItems: 'center', gap: theme.spacing.l },
+  cancelBtn: {
+    backgroundColor: theme.colors.neutral, paddingVertical: 20, paddingHorizontal: 40,
+    borderRadius: theme.borderRadius.l,
   },
   cancelText: { fontSize: theme.typography.elder.body, fontWeight: 'bold', color: theme.colors.text.primary },
-  sentContainer: { width: '100%', alignItems: 'center', marginBottom: theme.spacing.xl },
-  sentBadge: { alignItems: 'center', gap: 10, marginBottom: theme.spacing.xl },
+  sentBadge: { alignItems: 'center', gap: 10 },
   sentBadgeText: { fontSize: theme.typography.elder.body, color: theme.colors.text.inverse, fontWeight: 'bold' },
-  homeBtn: { 
-    backgroundColor: 'rgba(255,255,255,0.2)', paddingVertical: 18, paddingHorizontal: 40, 
-    borderRadius: theme.borderRadius.l, borderWidth: 2, borderColor: theme.colors.surface
+  homeBtn: {
+    width: '100%',
+    backgroundColor: 'rgba(255,255,255,0.2)', paddingVertical: 18,
+    borderRadius: theme.borderRadius.l, borderWidth: 2, borderColor: theme.colors.surface,
+    alignItems: 'center',
   },
   homeBtnText: { fontSize: theme.typography.elder.body, fontWeight: 'bold', color: theme.colors.text.inverse },
 });
+

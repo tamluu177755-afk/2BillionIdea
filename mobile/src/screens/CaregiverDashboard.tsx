@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Image, ActivityIndicator, Dimensions, Animated, Easing
+  Image, ActivityIndicator, Dimensions, Animated, Easing, Platform, Alert
 } from 'react-native';
 import { Audio } from 'expo-av';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,6 +10,7 @@ import { theme } from '../theme/theme';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Card } from '../components/Card';
 import { useAppStore } from '../store/useAppStore';
+import { webAudioManager } from '../services/audioManager';
 
 const CAMERAS = [
   { label: 'Phòng khách', status: 'Bình thường', image: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=600' },
@@ -25,6 +26,9 @@ export const CaregiverDashboard = () => {
   const frameTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const flashAnim = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
+  const isWeb = Platform.OS === 'web';
+  // Track if user has interacted with page (for iOS audio unlock)
+  const audioUnlockedRef = useRef(false);
 
   const {
     elderUser,
@@ -36,25 +40,61 @@ export const CaregiverDashboard = () => {
     activeSos
   } = useAppStore();
 
+  // Hàm unlock audio iOS - gọi trong mọi user gesture
+  const unlockAudioIfNeeded = useCallback(async () => {
+    if (audioUnlockedRef.current) return;
+    audioUnlockedRef.current = true;
+    if (isWeb) {
+      await webAudioManager.unlock();
+    } else {
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          staysActiveInBackground: true,
+          playsInSilentModeIOS: true,
+          shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: false,
+        });
+      } catch (e) {}
+    }
+  }, [isWeb]);
+
   useEffect(() => {
     const playAlarm = async () => {
-      try {
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: 'https://assets.mixkit.co/active_storage/sfx/951/951-preview.mp3' },
-          { isLooping: true, volume: 1.0 }
-        );
-        soundRef.current = sound;
-        await sound.playAsync();
-      } catch (e) {
-        console.log('Error playing alarm', e);
+      if (isWeb) {
+        // Web (iOS Safari): dùng Web Audio API
+        await webAudioManager.playSosAlarm();
+      } else {
+        // Native iOS/Android: dùng expo-av
+        try {
+          await Audio.setAudioModeAsync({
+            allowsRecordingIOS: false,
+            staysActiveInBackground: true,
+            playsInSilentModeIOS: true,
+            shouldDuckAndroid: true,
+            playThroughEarpieceAndroid: false,
+          });
+          const { sound } = await Audio.Sound.createAsync(
+            { uri: 'https://assets.mixkit.co/active_storage/sfx/951/951-preview.mp3' },
+            { isLooping: true, volume: 1.0 }
+          );
+          soundRef.current = sound;
+          await sound.playAsync();
+        } catch (e) {
+          console.log('Error playing alarm', e);
+        }
       }
     };
 
     const stopAlarm = async () => {
-      if (soundRef.current) {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
-        soundRef.current = null;
+      if (isWeb) {
+        webAudioManager.stopSosAlarm();
+      } else {
+        if (soundRef.current) {
+          await soundRef.current.stopAsync();
+          await soundRef.current.unloadAsync();
+          soundRef.current = null;
+        }
       }
     };
 
@@ -74,7 +114,7 @@ export const CaregiverDashboard = () => {
     return () => {
       stopAlarm();
     };
-  }, [sosAlertData]);
+  }, [sosAlertData, isWeb]);
 
   const handleStopAlarmAndNavigate = async (screen: string, params?: any) => {
     if (soundRef.current) {
@@ -145,6 +185,12 @@ export const CaregiverDashboard = () => {
     }, [activeTab, initSocket, loadElderUser, setupSocketListeners, removeSocketListeners, navigation])
   );
 
+  // Unlock audio trên iOS web khi trang load xong - yêu cầu user interaction
+  // Dùng một invisible overlay để capture interaction đầu tiên
+  const handleFirstInteraction = useCallback(() => {
+    unlockAudioIfNeeded();
+  }, [unlockAudioIfNeeded]);
+
   const meds = elderUser?.elderProfile?.medications || [];
   const takenCount = meds.filter((m: any) => m.status === 'TAKEN').length;
   const progress = meds.length > 0 ? (takenCount / meds.length) : 0;
@@ -165,7 +211,11 @@ export const CaregiverDashboard = () => {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView
+      style={styles.safe}
+      // Capture touch để unlock iOS audio ngay lần đầu user chạm vào màn hình
+      onTouchStart={handleFirstInteraction}
+    >
       {sosAlertData && (
         <Animated.View style={[styles.sosOverlay, { backgroundColor }]}>
           <MaterialIcons name="report-problem" size={100} color="white" />
@@ -192,20 +242,27 @@ export const CaregiverDashboard = () => {
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.brand}>An Gia</Text>
+          {/* Nút KÍCH HOẠT: cực kỳ quan trọng cho iOS Safari - phải tap 1 lần để unlock audio */}
           <TouchableOpacity 
-            style={[styles.badge, { backgroundColor: theme.colors.primary }]}
+            style={[
+              styles.badge,
+              { backgroundColor: audioUnlockedRef.current ? theme.colors.success : theme.colors.primary }
+            ]}
             onPress={async () => {
-              try {
-                await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-                const { sound } = await Audio.Sound.createAsync(
-                  { uri: 'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3' }, // Short beep to unlock
-                  { shouldPlay: true, volume: 0.1 }
+              await unlockAudioIfNeeded();
+              if (isWeb) {
+                // Preload âm thanh ngay sau khi unlock
+                await webAudioManager.unlock();
+                Alert.alert(
+                  '🔊 Âm thanh đã sẵn sàng',
+                  'Hệ thống cảnh báo SOS đã được kích hoạt. Bạn sẽ nghe thấy tiếng còi khi có SOS.'
                 );
-                Alert.alert("Thông báo", "Hệ thống âm thanh khẩn cấp đã sẵn sàng.");
-              } catch (e) {}
+              } else {
+                Alert.alert('✅ Thông báo', 'Hệ thống âm thanh khẩn cấp đã sẵn sàng.');
+              }
             }}
           >
-            <Text style={[styles.badgeText, { color: 'white' }]}>KÍCH HOẠT ÂM THANH SOS</Text>
+            <Text style={[styles.badgeText, { color: 'white' }]}>🔔 KÍCH HOẠT ÂM THANH</Text>
           </TouchableOpacity>
         </View>
         <TouchableOpacity style={styles.bellBtn} onPress={() => loadElderUser()}>
@@ -298,9 +355,23 @@ export const CaregiverDashboard = () => {
           );
         })}
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: 80 }} />
       </ScrollView>
 
+      {/* Bottom Navigation */}
+      <View style={styles.bottomNav}>
+        <TouchableOpacity style={styles.navItem} onPress={() => {}}>
+          <MaterialIcons name="dashboard" size={28} color={theme.colors.primary} />
+          <Text style={styles.navTextActive}>Tổng quan</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => navigation.navigate('CaregiverProfile')}
+        >
+          <MaterialIcons name="person-outline" size={28} color={theme.colors.text.secondary} />
+          <Text style={styles.navText}>Hồ sơ</Text>
+        </TouchableOpacity>
+      </View>
 
     </SafeAreaView>
   );
@@ -395,5 +466,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#FF0000',
+  },
+  bottomNav: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.surface,
+    paddingVertical: theme.spacing.m,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    justifyContent: 'space-around',
+    position: 'absolute',
+    bottom: 0, left: 0, right: 0,
+  },
+  navItem: { alignItems: 'center', flex: 1 },
+  navText: {
+    fontSize: 12, fontWeight: 'bold',
+    color: theme.colors.text.secondary, marginTop: 4,
+  },
+  navTextActive: {
+    fontSize: 12, fontWeight: 'bold',
+    color: theme.colors.primary, marginTop: 4,
   },
 });
