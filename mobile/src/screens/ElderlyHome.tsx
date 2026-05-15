@@ -6,20 +6,20 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
-import { getElderUser, triggerSos, confirmMedication } from '../services/api';
+import { triggerSos } from '../services/api';
 import { useNavigation } from '@react-navigation/native';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
+import { useStore } from '../store/useStore';
 
 export const ElderlyHome = () => {
   const navigation = useNavigation<any>();
-  const [userData, setUserData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const { userData, medications, fetchData, markMedAsTaken } = useStore();
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const sosTimer = useRef<any>(null);
 
   useEffect(() => {
-    loadData();
+    fetchData();
     // SOS button pulse animation
     Animated.loop(
       Animated.sequence([
@@ -28,28 +28,6 @@ export const ElderlyHome = () => {
       ])
     ).start();
   }, []);
-
-  const loadData = async () => {
-    try {
-      const data = await getElderUser();
-      setUserData(data);
-    } catch (e) {
-      console.error('Load error:', e);
-      setUserData({
-        name: 'Ông Minh',
-        elderProfile: {
-          id: 'fallback-id',
-          medications: [
-            { id: '1', name: 'Thuốc Huyết Áp', time: '08:00', dosage: '1 viên', period: 'MORNING', status: 'TAKEN' },
-            { id: '2', name: 'Thuốc Tiểu Đường', time: '12:00', dosage: '1 viên', period: 'NOON', status: 'PENDING' },
-            { id: '3', name: 'Thuốc Bổ Não', time: '20:00', dosage: '1 viên', period: 'EVENING', status: 'PENDING' }
-          ]
-        }
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSosPressIn = () => {
     Vibration.vibrate([0, 100], true);
@@ -78,18 +56,11 @@ export const ElderlyHome = () => {
   };
 
   const handleConfirmMed = async (medId: string) => {
-    try {
-      await confirmMedication(medId);
-      loadData();
-    } catch (e) {
-      console.error('Confirm error', e);
-    }
+    await markMedAsTaken(medId);
   };
 
-  const profile = userData?.elderProfile;
-  const meds = profile?.medications || [];
-  const nextMed = meds.find((m: any) => m.status === 'PENDING');
-  const takenCount = meds.filter((m: any) => m.status === 'TAKEN').length;
+  const nextMed = medications.find((m: any) => m.status === 'PENDING');
+  const takenCount = medications.filter((m: any) => m.status === 'TAKEN').length;
 
   const getHourGreeting = () => {
     const h = new Date().getHours();
@@ -111,7 +82,7 @@ export const ElderlyHome = () => {
             <Text style={styles.name}>{userData?.name || 'Ông Minh'}</Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.bellBtn} onPress={() => loadData()}>
+        <TouchableOpacity style={styles.bellBtn} onPress={() => fetchData()}>
           <Ionicons name="refresh-circle" size={40} color={theme.colors.primary} />
         </TouchableOpacity>
       </View>
@@ -157,7 +128,7 @@ export const ElderlyHome = () => {
         {/* Progress Summary */}
         <View style={styles.progressContainer}>
           <Text style={styles.progressText}>
-            {takenCount > 0 ? `✅ Đã uống ${takenCount}/${meds.length} liều` : '🕒 Chưa uống liều nào hôm nay'}
+            {takenCount > 0 ? `✅ Đã uống ${takenCount}/${medications.length} liều` : '🕒 Chưa uống liều nào hôm nay'}
           </Text>
         </View>
 

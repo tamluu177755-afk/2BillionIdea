@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Image, ActivityIndicator, Dimensions
+  Image, ActivityIndicator, Dimensions, Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
-import { getElderUser, getSocket } from '../services/api';
+import { getSocket } from '../services/api';
 import { useNavigation } from '@react-navigation/native';
 import { Card } from '../components/Card';
+import { useStore } from '../store/useStore';
 
 const CAMERAS = [
   { label: 'Phòng khách', status: 'Bình thường', image: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=600' },
@@ -17,17 +18,17 @@ const CAMERAS = [
 
 export const CaregiverDashboard = () => {
   const navigation = useNavigation<any>();
-  const [userData, setUserData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const { userData, medications, fetchData } = useStore();
   const [activeTab, setActiveTab] = useState('Bố');
   const [statusText, setStatusText] = useState('Đang hoạt động bình thường');
+  const [fullscreenCam, setFullscreenCam] = useState<any>(null);
 
   useEffect(() => {
-    loadData();
+    fetchData();
     const sock = getSocket();
     sock.on('medication_taken', (data: any) => {
       setStatusText(`Vừa uống thuốc ${data.name} xong`);
-      loadData();
+      fetchData();
     });
     sock.on('sos_alert', (data: any) => {
       navigation.navigate('SosAlert', { 
@@ -40,20 +41,8 @@ export const CaregiverDashboard = () => {
     return () => { sock.off('medication_taken'); sock.off('sos_alert'); };
   }, [activeTab]);
 
-  const loadData = async () => {
-    try {
-      const data = await getElderUser();
-      setUserData(data);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const meds = userData?.elderProfile?.medications || [];
-  const takenCount = meds.filter((m: any) => m.status === 'TAKEN').length;
-  const progress = meds.length > 0 ? (takenCount / meds.length) : 0;
+  const takenCount = medications.filter((m: any) => m.status === 'TAKEN').length;
+  const progress = medications.length > 0 ? (takenCount / medications.length) : 0;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -65,8 +54,8 @@ export const CaregiverDashboard = () => {
             <Text style={styles.badgeText}>CON CÁI</Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.bellBtn}>
-          <Ionicons name="notifications-outline" size={24} color={theme.colors.text.primary} />
+        <TouchableOpacity style={styles.bellBtn} onPress={() => fetchData()}>
+          <Ionicons name="refresh-circle" size={32} color={theme.colors.primary} />
         </TouchableOpacity>
       </View>
 
@@ -100,7 +89,7 @@ export const CaregiverDashboard = () => {
         {/* Med Progress Section */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Theo dõi thuốc</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('PlaceholderScreen')}>
+          <TouchableOpacity onPress={() => navigation.navigate('MedReminder')}>
             <Text style={styles.sectionLink}>Xem chi tiết</Text>
           </TouchableOpacity>
         </View>
@@ -109,12 +98,11 @@ export const CaregiverDashboard = () => {
           <View style={styles.medProgressRow}>
             <View style={styles.medInfo}>
               <Text style={styles.medCountText}>{activeTab} đã uống</Text>
-              <Text style={styles.medCountBig}>{takenCount}/{meds.length}</Text>
+              <Text style={styles.medCountBig}>{takenCount}/{medications.length}</Text>
               <Text style={styles.medSubText}>liều thuốc hôm nay</Text>
             </View>
             <View style={styles.circularProgress}>
-               {/* Simple stylized progress */}
-               <View style={styles.progressRing}>
+               <View style={[styles.progressRing, { borderColor: theme.colors.success, borderWidth: 8 }]}>
                   <Text style={styles.progressPercent}>{Math.round(progress * 100)}%</Text>
                </View>
             </View>
@@ -140,7 +128,7 @@ export const CaregiverDashboard = () => {
               </View>
               <Text style={styles.cameraLabel}>{cam.label}</Text>
             </View>
-            <TouchableOpacity style={styles.expandBtn}>
+            <TouchableOpacity style={styles.expandBtn} onPress={() => setFullscreenCam(cam)}>
               <MaterialIcons name="fullscreen" size={24} color={theme.colors.text.inverse} />
             </TouchableOpacity>
           </View>
@@ -148,6 +136,23 @@ export const CaregiverDashboard = () => {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Camera Fullscreen Modal */}
+      <Modal visible={!!fullscreenCam} transparent animationType="fade">
+        <View style={styles.modalBg}>
+           <Image source={{ uri: fullscreenCam?.image }} style={styles.fullscreenImg} resizeMode="contain" />
+           <TouchableOpacity style={styles.closeModal} onPress={() => setFullscreenCam(null)}>
+              <MaterialIcons name="close" size={40} color="white" />
+           </TouchableOpacity>
+           <View style={styles.modalOverlay}>
+              <Text style={styles.modalTitle}>{fullscreenCam?.label}</Text>
+              <View style={styles.aiTag}>
+                <MaterialIcons name="auto-awesome" size={14} color={theme.colors.success} />
+                <Text style={styles.aiTagText}>AI: {fullscreenCam?.status}</Text>
+              </View>
+           </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -187,8 +192,8 @@ const styles = StyleSheet.create({
   medCountText: { fontSize: 14, color: theme.colors.text.secondary },
   medCountBig: { fontSize: 32, fontWeight: 'bold', color: theme.colors.text.primary },
   medSubText: { fontSize: 14, color: theme.colors.text.secondary },
-  circularProgress: { width: 80, height: 80, borderRadius: 40, borderWidth: 8, borderColor: theme.colors.neutral, alignItems: 'center', justifyContent: 'center' },
-  progressRing: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
+  circularProgress: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' },
+  progressRing: { width: '100%', height: '100%', borderRadius: 40, alignItems: 'center', justifyContent: 'center', borderColor: theme.colors.neutral, borderWidth: 8 },
   progressPercent: { fontSize: 18, fontWeight: 'bold', color: theme.colors.primary },
   liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFEBEB', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
   liveText: { fontSize: 10, fontWeight: 'bold', color: theme.colors.primary },
@@ -199,4 +204,9 @@ const styles = StyleSheet.create({
   aiTagText: { fontSize: 10, fontWeight: 'bold', color: theme.colors.success },
   cameraLabel: { fontSize: 16, fontWeight: 'bold', color: theme.colors.text.inverse },
   expandBtn: { position: 'absolute', top: 12, right: 12, backgroundColor: 'rgba(0,0,0,0.4)', padding: 6, borderRadius: 8 },
+  modalBg: { flex: 1, backgroundColor: 'black', justifyContent: 'center' },
+  fullscreenImg: { width: '100%', height: '80%' },
+  closeModal: { position: 'absolute', top: 50, right: 20 },
+  modalOverlay: { position: 'absolute', bottom: 50, left: 20 },
+  modalTitle: { color: 'white', fontSize: 24, fontWeight: 'bold', marginBottom: 8 },
 });

@@ -6,45 +6,27 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
-import { getElderUser, confirmMedication } from '../services/api';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
+import { useStore } from '../store/useStore';
 
 export const MedicationReminder = () => {
   const navigation = useNavigation<any>();
-  const [meds, setMeds] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { medications, fetchData, markMedAsTaken } = useStore();
 
-  useFocusEffect(useCallback(() => { loadData(); }, []));
-
-  const loadData = async () => {
-    try {
-      const data = await getElderUser();
-      setMeds(data?.elderProfile?.medications || []);
-    } catch (e) {
-      console.error(e);
-      setMeds([
-        { id: '1', name: 'Thuốc Huyết Áp', time: '08:00', dosage: '1 viên', period: 'MORNING', status: 'TAKEN' },
-        { id: '2', name: 'Thuốc Tiểu Đường', time: '12:00', dosage: '1 viên', period: 'NOON', status: 'PENDING' },
-        { id: '3', name: 'Thuốc Bổ Não', time: '20:00', dosage: '1 viên', period: 'EVENING', status: 'PENDING' }
-      ]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useFocusEffect(useCallback(() => { fetchData(); }, []));
 
   const handleConfirm = async (med: any) => {
     try {
-      await confirmMedication(med.id);
-      loadData();
+      await markMedAsTaken(med.id);
     } catch (e) {
       Alert.alert('Lỗi', 'Không thể xác nhận uống thuốc.');
     }
   };
 
-  const takenCount = meds.filter(m => m.status === 'TAKEN').length;
-  const progress = meds.length > 0 ? (takenCount / meds.length) * 100 : 0;
+  const takenCount = medications.filter(m => m.status === 'TAKEN').length;
+  const progress = medications.length > 0 ? (takenCount / medications.length) * 100 : 0;
 
   const PERIODS = [
     { key: 'MORNING', label: 'BUỔI SÁNG', icon: 'wb-sunny' },
@@ -67,7 +49,7 @@ export const MedicationReminder = () => {
         {/* Giant Progress Bar */}
         <View style={styles.progressContainer}>
           <View style={styles.progressHeader}>
-            <Text style={styles.progressLabel}>Đã uống {takenCount}/{meds.length} liều</Text>
+            <Text style={styles.progressLabel}>Đã uống {takenCount}/{medications.length} liều</Text>
             <Text style={styles.progressPercent}>{Math.round(progress)}%</Text>
           </View>
           <View style={styles.progressBg}>
@@ -76,7 +58,7 @@ export const MedicationReminder = () => {
         </View>
 
         {PERIODS.map(period => {
-          const items = meds.filter(m => m.period === period.key);
+          const items = medications.filter(m => m.period === period.key);
           if (items.length === 0) return null;
 
           return (
