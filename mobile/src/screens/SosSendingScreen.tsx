@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, Animated, TouchableOpacity, Alert, Easing, Linking, ActivityIndicator, Vibration
+  View, Text, StyleSheet, ScrollView, Animated, TouchableOpacity, Alert, Easing, Linking, ActivityIndicator, Vibration, Platform
 } from 'react-native';
 import { Audio } from 'expo-av';
 import * as Speech from 'expo-speech';
@@ -11,6 +11,7 @@ import { cancelSos, triggerSos } from '../services/api';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { Button } from '../components/Button';
 import { useAppStore } from '../store/useAppStore';
+import { webAudioManager } from '../services/audioManager';
 
 export const SosSendingScreen = () => {
   const route = useRoute<any>();
@@ -29,29 +30,30 @@ export const SosSendingScreen = () => {
   useEffect(() => {
     // Play urgent siren sound
     const playAlarm = async () => {
-      try {
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: 'https://assets.mixkit.co/active_storage/sfx/951/951-preview.mp3' }, // Siren
-          { isLooping: true, volume: 1.0 }
-        );
-        soundRef.current = sound;
-        await sound.playAsync();
-      } catch (e) {
-        console.log('Error playing alarm', e);
+      if (Platform.OS === 'web') {
+        webAudioManager.playSosAlarm();
+      } else {
+        try {
+          await Audio.setAudioModeAsync({
+            allowsRecordingIOS: false,
+            staysActiveInBackground: true,
+            playsInSilentModeIOS: true,
+            shouldDuckAndroid: true,
+            playThroughEarpieceAndroid: false,
+          });
+          const { sound } = await Audio.Sound.createAsync(
+            require('../../assets/sos-final.mp3'),
+            { isLooping: true, volume: 1.0 }
+          );
+          soundRef.current = sound;
+          await sound.playAsync();
+        } catch (e) {
+          console.log('Error playing alarm', e);
+        }
       }
     };
 
-    const startSpeechAlert = () => {
-      const message = `${elderUser?.name || 'Ông'} cần được hỗ trợ.`;
-      const speak = () => {
-        Speech.speak(message, { language: 'vi-VN', rate: 0.9, pitch: 1.0 });
-      };
-      speak();
-      speechIntervalRef.current = setInterval(speak, 5000);
-    };
-
     playAlarm();
-    startSpeechAlert();
 
     // Pulse animation
     Animated.loop(
@@ -76,10 +78,11 @@ export const SosSendingScreen = () => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (speechIntervalRef.current) clearInterval(speechIntervalRef.current);
-      Speech.stop();
-      if (soundRef.current) {
-        soundRef.current.stopAsync();
-        soundRef.current.unloadAsync();
+      
+      if (Platform.OS === 'web') {
+        webAudioManager.stopSosAlarm();
+      } else if (soundRef.current) {
+        soundRef.current.stopAsync().then(() => soundRef.current?.unloadAsync());
       }
     };
   }, []);
@@ -104,10 +107,13 @@ export const SosSendingScreen = () => {
 
   const handleCancel = async () => {
     if (speechIntervalRef.current) clearInterval(speechIntervalRef.current);
-    Speech.stop();
-    if (soundRef.current) {
+    
+    if (Platform.OS === 'web') {
+      webAudioManager.stopSosAlarm();
+    } else if (soundRef.current) {
       await soundRef.current.stopAsync();
     }
+    
     Vibration.cancel();
     if (timerRef.current) clearInterval(timerRef.current);
     try {
@@ -120,10 +126,13 @@ export const SosSendingScreen = () => {
 
   const handleReturnHome = async () => {
     if (speechIntervalRef.current) clearInterval(speechIntervalRef.current);
-    Speech.stop();
-    if (soundRef.current) {
+    
+    if (Platform.OS === 'web') {
+      webAudioManager.stopSosAlarm();
+    } else if (soundRef.current) {
       await soundRef.current.stopAsync();
     }
+    
     Vibration.cancel();
     navigation.navigate('ElderlyHome');
   };

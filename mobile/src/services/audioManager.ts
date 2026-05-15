@@ -12,8 +12,8 @@ import { Platform } from 'react-native';
 // Chỉ áp dụng trên web (iOS Safari, Chrome mobile)
 const isWeb = Platform.OS === 'web';
 
-// File âm thanh SOS: còi báo động + giọng nói tiếng Việt (host cùng app)
-const SOS_ALARM_URL = '/assets/sos-final.mp3';
+// URL của file âm thanh trong thư mục public (được serve tĩnh)
+const SOS_ALARM_URL = '/sos-final.mp3';
 
 class WebAudioManager {
   private audioContext: AudioContext | null = null;

@@ -75,7 +75,7 @@ export const CaregiverDashboard = () => {
             playThroughEarpieceAndroid: false,
           });
           const { sound } = await Audio.Sound.createAsync(
-            { uri: 'https://assets.mixkit.co/active_storage/sfx/951/951-preview.mp3' },
+            require('../../assets/sos-final.mp3'),
             { isLooping: true, volume: 1.0 }
           );
           soundRef.current = sound;
@@ -117,12 +117,16 @@ export const CaregiverDashboard = () => {
   }, [sosAlertData, isWeb]);
 
   const handleStopAlarmAndNavigate = async (screen: string, params?: any) => {
-    if (soundRef.current) {
-      try {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
-        soundRef.current = null;
-      } catch (e) {}
+    if (isWeb) {
+      webAudioManager.stopSosAlarm();
+    } else {
+      if (soundRef.current) {
+        try {
+          await soundRef.current.stopAsync();
+          await soundRef.current.unloadAsync();
+          soundRef.current = null;
+        } catch (e) {}
+      }
     }
     setSosAlertData(null);
     navigation.navigate(screen, params);

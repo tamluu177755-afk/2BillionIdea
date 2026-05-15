@@ -122,12 +122,14 @@ export const ElderlyProfile = () => {
           </View>
         </Card>
 
-        <Button 
-          title="ĐĂNG XUẤT / ĐỔI VAI TRÒ" 
-          variant="ghost" 
-          onPress={() => navigation.navigate('RoleSelector')}
+        {/* Logout button */}
+        <TouchableOpacity
           style={styles.logoutBtn}
-        />
+          onPress={() => navigation.navigate('RoleSelector')}
+        >
+          <MaterialIcons name="logout" size={22} color={theme.colors.primary} />
+          <Text style={styles.logoutText}>Đăng xuất / Chuyển vai trò</Text>
+        </TouchableOpacity>
 
         <View style={{ height: 60 }} />
       </ScrollView>
@@ -178,5 +180,16 @@ const styles = StyleSheet.create({
     width: 50, height: 50, borderRadius: 25, backgroundColor: theme.colors.success,
     alignItems: 'center', justifyContent: 'center'
   },
-  logoutBtn: { marginTop: theme.spacing.l },
+  logoutBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: theme.spacing.s,
+    paddingVertical: theme.spacing.l,
+    borderRadius: theme.borderRadius.m,
+    borderWidth: 1.5, borderColor: theme.colors.primary,
+    backgroundColor: 'white',
+    marginTop: theme.spacing.l,
+  },
+  logoutText: {
+    fontSize: 15, fontWeight: 'bold', color: theme.colors.primary,
+  },
 });

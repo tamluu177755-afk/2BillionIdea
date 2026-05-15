@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Linking, Vibration, Animated
+  View, Text, StyleSheet, TouchableOpacity, Linking, Vibration, Animated, Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
 import { resolveSos } from '../services/api';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import * as Speech from 'expo-speech';
+import { Audio } from 'expo-av';
+import { webAudioManager } from '../services/audioManager';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 
@@ -27,16 +28,48 @@ export const SosAlertScreen = () => {
       ])
     ).start();
 
-    // Forced alarm
-    const interval = setInterval(() => {
+    let soundObj: Audio.Sound | null = null;
+    let interval: NodeJS.Timeout;
+
+    const playAlertSound = async () => {
+      if (Platform.OS === 'web') {
+        webAudioManager.playSosAlarm();
+      } else {
+        try {
+          await Audio.setAudioModeAsync({
+            allowsRecordingIOS: false,
+            staysActiveInBackground: true,
+            playsInSilentModeIOS: true,
+            shouldDuckAndroid: true,
+            playThroughEarpieceAndroid: false,
+          });
+          const { sound } = await Audio.Sound.createAsync(
+            require('../../assets/sos-final.mp3'),
+            { isLooping: true, volume: 1.0 }
+          );
+          soundObj = sound;
+          await sound.playAsync();
+        } catch (e) {
+          console.warn('Error playing native alert sound', e);
+        }
+      }
+    };
+
+    playAlertSound();
+
+    // Forced vibration loop
+    interval = setInterval(() => {
       Vibration.vibrate([0, 500, 200, 500]);
-      Speech.speak(`Cảnh báo khẩn cấp, ${elderName} cần giúp đỡ`, { language: 'vi-VN' });
     }, 3000);
 
     return () => {
       clearInterval(interval);
       Vibration.cancel();
-      Speech.stop();
+      if (Platform.OS === 'web') {
+        webAudioManager.stopSosAlarm();
+      } else if (soundObj) {
+        soundObj.stopAsync().then(() => soundObj?.unloadAsync());
+      }
     };
   }, []);
 
