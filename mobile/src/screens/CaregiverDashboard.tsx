@@ -22,6 +22,7 @@ export const CaregiverDashboard = () => {
   const [statusText, setStatusText] = useState('Đang hoạt động bình thường');
   const [sosAlertData, setSosAlertData] = useState<any>(null);
   const [liveFrame, setLiveFrame] = useState<string | null>(null);
+  const frameTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const flashAnim = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
 
@@ -125,12 +126,21 @@ export const CaregiverDashboard = () => {
         socket.on('video_frame', (data: any) => {
           if (data && data.frame) {
             setLiveFrame(data.frame);
+            if (frameTimeoutRef.current) {
+              clearTimeout(frameTimeoutRef.current);
+            }
+            frameTimeoutRef.current = setTimeout(() => {
+              setLiveFrame(null);
+            }, 3000);
           }
         });
       }
 
       return () => {
         removeSocketListeners();
+        if (frameTimeoutRef.current) {
+          clearTimeout(frameTimeoutRef.current);
+        }
       };
     }, [activeTab, initSocket, loadElderUser, setupSocketListeners, removeSocketListeners, navigation])
   );
@@ -271,8 +281,10 @@ export const CaregiverDashboard = () => {
               <Image source={{ uri: imageUri }} style={styles.cameraImg} />
               <View style={styles.cameraOverlay}>
                 <View style={styles.aiTag}>
-                  <MaterialIcons name="auto-awesome" size={14} color={theme.colors.success} />
-                  <Text style={styles.aiTagText}>AI: {cam.status}</Text>
+                  <MaterialIcons name={isLiveCam ? "auto-awesome" : "videocam-off"} size={14} color={isLiveCam ? theme.colors.success : theme.colors.error} />
+                  <Text style={[styles.aiTagText, !isLiveCam && { color: theme.colors.error }]}>
+                    {isLiveCam ? "AI: " + cam.status : "Chưa kết nối AI Camera"}
+                  </Text>
                 </View>
                 <Text style={styles.cameraLabel}>{cam.label}</Text>
               </View>
