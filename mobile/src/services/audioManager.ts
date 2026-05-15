@@ -71,7 +71,12 @@ class WebAudioManager {
    */
   private async preloadSosSound(): Promise<void> {
     if (!this.audioContext || !isWeb) return;
-    if (this.loadPromise) return;
+    
+    // Nếu đang tải dở, đợi tải xong thay vì return ngay
+    if (this.loadPromise) {
+      await this.loadPromise;
+      return;
+    }
 
     const ctx = this.audioContext;
     this.loadPromise = (async () => {
