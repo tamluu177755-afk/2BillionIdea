@@ -102,7 +102,7 @@ export const SosSendingScreen = () => {
     }
 
     // 2. Call primary contact
-    Linking.openURL('tel:0962664000').catch(() => {});
+    Linking.openURL('tel:0385075856').catch(() => {});
   };
 
   const handleCancel = async () => {

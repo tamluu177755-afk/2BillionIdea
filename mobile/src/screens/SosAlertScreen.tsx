@@ -73,7 +73,7 @@ export const SosAlertScreen = () => {
     };
   }, []);
 
-  const handleCall = () => Linking.openURL('tel:0962664000');
+  const handleCall = () => Linking.openURL('tel:0385075856');
   const handleResolve = async () => {
     if (sosId) await resolveSos(sosId).catch(() => {});
     navigation.navigate('CaregiverDashboard');
