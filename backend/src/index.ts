@@ -259,6 +259,12 @@ app.post('/api/vitals', async (req, res) => {
 // ─── Socket.IO ───────────────────────────────────────────────────────
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
+  
+  socket.on('video_frame', (data) => {
+    // Broadcast the frame to all other connected clients (like the mobile app)
+    socket.broadcast.emit('video_frame', data);
+  });
+
   socket.on('disconnect', () => console.log('Client disconnected:', socket.id));
 });
 

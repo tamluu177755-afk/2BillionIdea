@@ -32,3 +32,6 @@ start-public-backend.js
 web-qr.html
 VERCEL_DEPLOYMENT_PLAN.md
 BACKEND_DEPLOYMENT_GUIDE.md
+
+# Camera AI
+*/**.pt

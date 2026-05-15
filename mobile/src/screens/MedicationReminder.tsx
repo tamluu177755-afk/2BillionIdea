@@ -195,7 +195,7 @@ export const MedicationReminder = () => {
         </View>
 
         {PERIODS.map(period => {
-          const items = meds.filter(m => m.period === period.key);
+          const items = meds.filter((m: any) => m.period === period.key);
           if (items.length === 0) return null;
 
           return (

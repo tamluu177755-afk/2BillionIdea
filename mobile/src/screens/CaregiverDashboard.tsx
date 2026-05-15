@@ -21,6 +21,8 @@ export const CaregiverDashboard = () => {
   const [activeTab, setActiveTab] = useState('Bố');
   const [statusText, setStatusText] = useState('Đang hoạt động bình thường');
   const [sosAlertData, setSosAlertData] = useState<any>(null);
+  const [liveFrame, setLiveFrame] = useState<string | null>(null);
+  const frameTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const flashAnim = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
 
@@ -119,10 +121,26 @@ export const CaregiverDashboard = () => {
         socket.on('sos_cancelled', () => {
           setSosAlertData(null);
         });
+
+        socket.off('video_frame');
+        socket.on('video_frame', (data: any) => {
+          if (data && data.frame) {
+            setLiveFrame(data.frame);
+            if (frameTimeoutRef.current) {
+              clearTimeout(frameTimeoutRef.current);
+            }
+            frameTimeoutRef.current = setTimeout(() => {
+              setLiveFrame(null);
+            }, 3000);
+          }
+        });
       }
 
       return () => {
         removeSocketListeners();
+        if (frameTimeoutRef.current) {
+          clearTimeout(frameTimeoutRef.current);
+        }
       };
     }, [activeTab, initSocket, loadElderUser, setupSocketListeners, removeSocketListeners, navigation])
   );
@@ -190,8 +208,8 @@ export const CaregiverDashboard = () => {
             <Text style={[styles.badgeText, { color: 'white' }]}>KÍCH HOẠT ÂM THANH SOS</Text>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.bellBtn}>
-          <Ionicons name="notifications-outline" size={24} color={theme.colors.text.primary} />
+        <TouchableOpacity style={styles.bellBtn} onPress={() => loadElderUser()}>
+          <Ionicons name="refresh-circle" size={32} color={theme.colors.primary} />
         </TouchableOpacity>
       </View>
 
@@ -238,8 +256,7 @@ export const CaregiverDashboard = () => {
               <Text style={styles.medSubText}>liều thuốc hôm nay</Text>
             </View>
             <View style={styles.circularProgress}>
-               {/* Simple stylized progress */}
-               <View style={styles.progressRing}>
+               <View style={[styles.progressRing, { borderColor: theme.colors.success, borderWidth: 8 }]}>
                   <Text style={styles.progressPercent}>{Math.round(progress * 100)}%</Text>
                </View>
             </View>
@@ -255,27 +272,36 @@ export const CaregiverDashboard = () => {
           </View>
         </View>
 
-        {CAMERAS.map((cam, idx) => (
-          <View key={idx} style={styles.cameraWrapper}>
-            <Image source={{ uri: cam.image }} style={styles.cameraImg} />
-            <View style={styles.cameraOverlay}>
-              <View style={styles.aiTag}>
-                <MaterialIcons name="auto-awesome" size={14} color={theme.colors.success} />
-                <Text style={styles.aiTagText}>AI: {cam.status}</Text>
+        {CAMERAS.map((cam, idx) => {
+          const isLiveCam = idx === 0 && liveFrame;
+          const imageUri = isLiveCam ? `data:image/jpeg;base64,${liveFrame}` : cam.image;
+          
+          return (
+            <View key={idx} style={styles.cameraWrapper}>
+              <Image source={{ uri: imageUri }} style={styles.cameraImg} />
+              <View style={styles.cameraOverlay}>
+                <View style={styles.aiTag}>
+                  <MaterialIcons name={isLiveCam ? "auto-awesome" : "videocam-off"} size={14} color={isLiveCam ? theme.colors.success : theme.colors.error} />
+                  <Text style={[styles.aiTagText, !isLiveCam && { color: theme.colors.error }]}>
+                    {isLiveCam ? "AI: " + cam.status : "Chưa kết nối AI Camera"}
+                  </Text>
+                </View>
+                <Text style={styles.cameraLabel}>{cam.label}</Text>
               </View>
-              <Text style={styles.cameraLabel}>{cam.label}</Text>
+              <TouchableOpacity 
+                style={styles.expandBtn}
+                onPress={() => handleStopAlarmAndNavigate('PlaceholderScreen')}
+              >
+                <MaterialIcons name="fullscreen" size={24} color={theme.colors.text.inverse} />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity 
-              style={styles.expandBtn}
-              onPress={() => handleStopAlarmAndNavigate('PlaceholderScreen')}
-            >
-              <MaterialIcons name="fullscreen" size={24} color={theme.colors.text.inverse} />
-            </TouchableOpacity>
-          </View>
-        ))}
+          );
+        })}
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+
     </SafeAreaView>
   );
 };
@@ -315,8 +341,8 @@ const styles = StyleSheet.create({
   medCountText: { fontSize: 14, color: theme.colors.text.secondary },
   medCountBig: { fontSize: 32, fontWeight: 'bold', color: theme.colors.text.primary },
   medSubText: { fontSize: 14, color: theme.colors.text.secondary },
-  circularProgress: { width: 80, height: 80, borderRadius: 40, borderWidth: 8, borderColor: theme.colors.neutral, alignItems: 'center', justifyContent: 'center' },
-  progressRing: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
+  circularProgress: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' },
+  progressRing: { width: '100%', height: '100%', borderRadius: 40, alignItems: 'center', justifyContent: 'center', borderColor: theme.colors.neutral, borderWidth: 8 },
   progressPercent: { fontSize: 18, fontWeight: 'bold', color: theme.colors.primary },
   liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFEBEB', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
   liveText: { fontSize: 10, fontWeight: 'bold', color: theme.colors.primary },
