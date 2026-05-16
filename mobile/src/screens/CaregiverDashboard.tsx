@@ -11,6 +11,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Card } from '../components/Card';
 import { useAppStore } from '../store/useAppStore';
 import { webAudioManager } from '../services/audioManager';
+import Svg, { Circle } from 'react-native-svg';
 
 const CAMERAS = [
   { label: 'Phòng khách', status: 'Bình thường', image: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=600' },
@@ -323,9 +324,15 @@ export const CaregiverDashboard = () => {
               <Text style={styles.medSubText}>liều thuốc hôm nay</Text>
             </View>
             <View style={styles.circularProgress}>
-               <View style={[styles.progressRing, { borderColor: theme.colors.success, borderWidth: 8 }]}>
-                  <Text style={styles.progressPercent}>{Math.round(progress * 100)}%</Text>
-               </View>
+              <Svg width="80" height="80" viewBox="0 0 80 80" style={{ position: 'absolute' }}>
+                <Circle cx="40" cy="40" r="36" stroke={theme.colors.neutral} strokeWidth="8" fill="none" />
+                <Circle cx="40" cy="40" r="36" stroke={theme.colors.success} strokeWidth="8" fill="none"
+                        strokeDasharray={2 * Math.PI * 36}
+                        strokeDashoffset={2 * Math.PI * 36 * (1 - progress)}
+                        strokeLinecap="round" 
+                        rotation="-90" origin="40, 40" />
+              </Svg>
+              <Text style={styles.progressPercent}>{Math.round(progress * 100)}%</Text>
             </View>
           </View>
         </Card>
@@ -431,7 +438,7 @@ const styles = StyleSheet.create({
   progressPercent: { fontSize: 18, fontWeight: 'bold', color: theme.colors.primary },
   liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFEBEB', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
   liveText: { fontSize: 10, fontWeight: 'bold', color: theme.colors.primary },
-  cameraWrapper: { aspectRatio: 4 / 3, width: '100%', borderRadius: theme.borderRadius.l, overflow: 'hidden', marginBottom: theme.spacing.m, position: 'relative' },
+  cameraWrapper: { aspectRatio: 16 / 9, width: '100%', borderRadius: theme.borderRadius.l, overflow: 'hidden', marginBottom: theme.spacing.m, position: 'relative' },
   cameraImg: { width: '100%', height: '100%' },
   cameraOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: theme.spacing.m, backgroundColor: 'rgba(0,0,0,0.3)' },
   aiTag: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.9)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginBottom: 4 },

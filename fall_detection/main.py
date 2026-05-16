@@ -92,8 +92,8 @@ class SocketIOStream:
                 # Đợi tối đa 0.1s để lấy frame từ queue
                 frame = self.q.get(timeout=0.1)
                 if self.sio.connected:
-                    # Resize và mã hóa ở thread này thay vì thread chính
-                    small_frame = cv2.resize(frame, (640, 480))
+                    # Resize và mã hóa ở thread này thay vì thread chính (đã đổi về 16:9)
+                    small_frame = cv2.resize(frame, (640, 360))
                     ret_enc, buffer = cv2.imencode('.jpg', small_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
                     if ret_enc:
                         b64_str = base64.b64encode(buffer).decode('utf-8')
