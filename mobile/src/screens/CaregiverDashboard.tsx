@@ -339,7 +339,7 @@ export const CaregiverDashboard = () => {
           
           return (
             <View key={idx} style={styles.cameraWrapper}>
-              <Image source={{ uri: imageUri }} style={styles.cameraImg} />
+              <Image source={{ uri: imageUri }} style={styles.cameraImg} fadeDuration={0} />
               <View style={styles.cameraOverlay}>
                 <View style={styles.aiTag}>
                   <MaterialIcons name={isLiveCam ? "auto-awesome" : "videocam-off"} size={14} color={isLiveCam ? theme.colors.success : theme.colors.error} />

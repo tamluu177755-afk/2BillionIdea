@@ -5,12 +5,110 @@ import requests
 import threading
 import socketio
 import base64
+import queue
 from ultralytics import YOLO
 from fall_detector import FallDetector
+
+def draw_text_with_bg(img, text, position, font=cv2.FONT_HERSHEY_SIMPLEX, scale=1.0, color=(255, 255, 255), thickness=2, bg_color=(0, 0, 0)):
+    """Vẽ chữ có nền phía sau để dễ nhìn hơn"""
+    (text_width, text_height), baseline = cv2.getTextSize(text, font, scale, thickness)
+    x, y = position
+    # Vẽ hình chữ nhật nền (phủ kín vùng chữ)
+    cv2.rectangle(img, (x, y - text_height - baseline), (x + text_width, y + baseline), bg_color, -1)
+    # Vẽ chữ đè lên trên
+    cv2.putText(img, text, (x, y), font, scale, color, thickness)
 
 # Cấu hình API Backend
 API_BASE_URL = "http://localhost:3000/api"
 COOLDOWN_SECONDS = 30
+
+# --- CÁC LỚP HỖ TRỢ THREADING ---
+
+class CameraStream:
+    """Lớp đọc frames từ Camera liên tục ở một Thread riêng biệt để tránh block I/O"""
+    def __init__(self, src=0):
+        self.cap = cv2.VideoCapture(src)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+        self.ret, self.frame = self.cap.read()
+        self.running = True
+        self.lock = threading.Lock()
+        
+        # Khởi tạo luồng
+        self.thread = threading.Thread(target=self.update, args=())
+        self.thread.daemon = True
+
+    def start(self):
+        self.thread.start()
+        return self
+
+    def update(self):
+        while self.running:
+            ret, frame = self.cap.read()
+            with self.lock:
+                self.ret = ret
+                # Copy frame để luồng chính lấy không bị ghi đè
+                self.frame = frame
+
+    def read(self):
+        with self.lock:
+            # Trả về bản sao của frame để đảm bảo thread-safe
+            return self.ret, self.frame.copy() if self.ret else (False, None)
+
+    def isOpened(self):
+        return self.cap.isOpened()
+
+    def release(self):
+        self.running = False
+        self.thread.join()
+        self.cap.release()
+
+class SocketIOStream:
+    """Lớp xử lý resize, encode base64 và gửi frame qua Socket.IO ở một Thread riêng"""
+    def __init__(self, sio):
+        self.sio = sio
+        self.q = queue.Queue(maxsize=3) # Giới hạn queue nhỏ để không lưu trữ frame cũ (tránh trễ hình)
+        self.running = True
+        
+        self.thread = threading.Thread(target=self.run, args=())
+        self.thread.daemon = True
+
+    def start(self):
+        self.thread.start()
+        return self
+
+    def send_frame(self, frame):
+        # Nếu queue đầy (xử lý không kịp), loại bỏ frame cũ và cho frame mới vào
+        if self.q.full():
+            try:
+                self.q.get_nowait()
+            except queue.Empty:
+                pass
+        self.q.put(frame)
+
+    def run(self):
+        while self.running:
+            try:
+                # Đợi tối đa 0.1s để lấy frame từ queue
+                frame = self.q.get(timeout=0.1)
+                if self.sio.connected:
+                    # Resize và mã hóa ở thread này thay vì thread chính
+                    small_frame = cv2.resize(frame, (640, 480))
+                    ret_enc, buffer = cv2.imencode('.jpg', small_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
+                    if ret_enc:
+                        b64_str = base64.b64encode(buffer).decode('utf-8')
+                        self.sio.emit('video_frame', {'frame': b64_str})
+                self.q.task_done()
+            except queue.Empty:
+                pass
+            except Exception as e:
+                pass
+
+    def stop(self):
+        self.running = False
+        self.thread.join()
+
+# --- HẾT PHẦN THREADING ---
 
 def main():
     # Lấy thông tin Elder mặc định từ Backend
@@ -45,24 +143,24 @@ def main():
     except Exception as e:
         print(f"Không thể kết nối Socket.IO: {e}")
 
-    # Khởi tạo model YOLOv8 pose (n = nano, nhẹ nhất chạy cực nhanh trên GPU/CPU)
+    # Khởi tạo model YOLOv8 pose
     print("Đang tải model YOLOv8n-pose...")
     model = YOLO("yolov8n-pose.pt")
     
     # Khởi tạo Fall Detector với các ngưỡng cho trước
     detector = FallDetector(aspect_ratio_threshold=1.5, spine_angle_threshold=40, drop_velocity_threshold=0.8)
     
-    # Mở webcam
-    # Số 0 thường là webcam mặc định của máy
-    cap = cv2.VideoCapture(0)
+    # Khởi tạo Thread đọc Camera
+    print("Khởi tạo luồng đọc Camera...")
+    cam_stream = CameraStream(0).start()
     
-    # Cố gắng set độ phân giải 1080p
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-    
-    if not cap.isOpened():
+    if not cam_stream.isOpened():
         print("Không thể mở webcam! Vui lòng kiểm tra lại thiết bị.")
         return
+
+    # Khởi tạo Thread gửi Socket.IO
+    print("Khởi tạo luồng truyền phát Socket.IO...")
+    socket_stream = SocketIOStream(sio).start()
 
     print("========================================")
     print("Bắt đầu Pipeline Fall Detection.")
@@ -76,16 +174,15 @@ def main():
     def nothing(x):
         pass
         
-    # Tạo các thanh trượt (Trackbar) để chỉnh tham số trực tiếp 
-    # (OpenCV chỉ hỗ trợ số nguyên, nên AR và Vel được nhân 10)
-    cv2.createTrackbar("AR Thresh (x10)", "Real-time Fall Detection (YOLOv8-Pose)", 15, 30, nothing)
-    cv2.createTrackbar("Angle Thresh", "Real-time Fall Detection (YOLOv8-Pose)", 40, 90, nothing)
-    cv2.createTrackbar("Vel Thresh (x10)", "Real-time Fall Detection (YOLOv8-Pose)", 8, 30, nothing)
+    # Tạo các thanh trượt (Trackbar)
+    cv2.createTrackbar("Angle Thr.", "Real-time Fall Detection (YOLOv8-Pose)", 40, 90, nothing)
+    cv2.createTrackbar("Stand Vel.(x10)", "Real-time Fall Detection (YOLOv8-Pose)", 16, 20, nothing)
+    cv2.createTrackbar("Sit Vel.(x10)", "Real-time Fall Detection (YOLOv8-Pose)", 12, 20, nothing)
+    cv2.createTrackbar("Lying Dur.(x10)", "Real-time Fall Detection (YOLOv8-Pose)", 10, 50, nothing)
+    cv2.createTrackbar("Fall Win.(x10)", "Real-time Fall Detection (YOLOv8-Pose)", 20, 100, nothing)
     
     prev_time = time.time()
     frame_count = 0
-    
-    # Quản lý thời gian gửi cảnh báo SOS cho từng người để chống spam API
     last_alert_time = {}
     
     def send_sos_alert(profile_id):
@@ -105,36 +202,33 @@ def main():
             print(f">> [LỖI] Không thể gửi cảnh báo SOS: {e}")
     
     while True:
-        ret, frame = cap.read()
-        if not ret:
-            print("Không thể đọc frame từ webcam.")
-            break
+        # Lấy frame từ luồng phụ (không bị block)
+        ret, frame = cam_stream.read()
+        if not ret or frame is None:
+            time.sleep(0.01) # Chờ camera sẵn sàng
+            continue
             
-        # Đọc tham số từ Trackbar và cập nhật cho detector
-        detector.aspect_ratio_threshold = cv2.getTrackbarPos("AR Thresh (x10)", "Real-time Fall Detection (YOLOv8-Pose)") / 10.0
-        detector.spine_angle_threshold = cv2.getTrackbarPos("Angle Thresh", "Real-time Fall Detection (YOLOv8-Pose)")
-        detector.drop_velocity_threshold = cv2.getTrackbarPos("Vel Thresh (x10)", "Real-time Fall Detection (YOLOv8-Pose)") / 10.0
+        # Đọc tham số từ Trackbar
+        detector.spine_angle_threshold = cv2.getTrackbarPos("Angle Thr.", "Real-time Fall Detection (YOLOv8-Pose)")
+        detector.drop_velocity_threshold = cv2.getTrackbarPos("Stand Vel.(x10)", "Real-time Fall Detection (YOLOv8-Pose)") / 10.0
+        detector.sitting_vel_threshold = cv2.getTrackbarPos("Sit Vel.(x10)", "Real-time Fall Detection (YOLOv8-Pose)") / 10.0
+        detector.lying_duration_threshold = cv2.getTrackbarPos("Lying Dur.(x10)", "Real-time Fall Detection (YOLOv8-Pose)") / 10.0
+        detector.fall_window_threshold = cv2.getTrackbarPos("Fall Win.(x10)", "Real-time Fall Detection (YOLOv8-Pose)") / 10.0
             
         current_time = time.time()
         fps = 1 / (current_time - prev_time) if (current_time - prev_time) > 0 else 0
         prev_time = current_time
             
-        # Dự đoán và theo dõi (tracking) với YOLOv8
+        # Dự đoán và theo dõi với YOLOv8 (CPU/MPS tự động nhận diện)
         results = model.track(frame, persist=True, verbose=False)
         
-        # YOLOv8 trả về một list các kết quả (do ta truyền 1 ảnh nên lấy r[0])
         r = results[0]
-        
-        # Clone ảnh, gọi r.plot(boxes=False) để vẽ các keypoint dạng khung xương (skeleton)
-        # Ta set boxes=False để tự vẽ bounding box sau cho dễ tùy chỉnh màu sắc
         annotated_frame = r.plot(boxes=False) 
         
         # Xử lý từng người trong frame
         if r.boxes is not None and r.keypoints is not None:
             boxes = r.boxes.xyxy.cpu().numpy()
-            # Lấy track_id do YOLOv8 cung cấp
             track_ids = r.boxes.id.cpu().numpy() if r.boxes.id is not None else [None] * len(boxes)
-            # YOLOv8 trả về tensor có shape (num_persons, 17, 3)
             keypoints_data = r.keypoints.data.cpu().numpy() 
             
             for i in range(len(boxes)):
@@ -142,73 +236,67 @@ def main():
                 keypoints = keypoints_data[i]
                 track_id = int(track_ids[i]) if track_ids[i] is not None else None
                 
-                # Truyền qua hệ thống nhận diện ngã (kèm track_id để tính vận tốc)
                 is_fall, reasons, metrics = detector.process(bbox, keypoints, track_id=track_id)
                 
                 x1, y1, x2, y2 = map(int, bbox[:4])
                 
                 if is_fall:
-                    # Logic báo động API
-                    # Dùng track_id nếu có, nếu không thì dùng 'unknown'
                     t_id = track_id if track_id is not None else 'unknown'
                     
                     if elder_profile_id:
                         if t_id not in last_alert_time or (current_time - last_alert_time[t_id]) > COOLDOWN_SECONDS:
                             last_alert_time[t_id] = current_time
-                            # Chạy hàm gọi API trên thread riêng để không bị giật lag khung hình
                             threading.Thread(target=send_sos_alert, args=(elder_profile_id,)).start()
 
-                    # Trạng thái Ngã: Bounding box và Text màu ĐỎ
-                    color = (0, 0, 255) # BGR
+                    color = (0, 0, 255)
                     label = "FALL DETECTED"
                     
-                    # Vẽ text cảnh báo KHẨN CẤP to ở góc trên cùng bên trái màn hình
-                    cv2.putText(annotated_frame, "!!! FALL DETECTED !!!", (50, 100), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 4)
                 else:
-                    # Trạng thái Bình thường: Xanh lá cây
                     color = (0, 255, 0)
                     label = "Normal"
                     
-                # Vẽ bounding box
                 cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 2)
-                # Vẽ nhãn trạng thái (Normal/Fall)
-                cv2.putText(annotated_frame, label, (x1, y1 - 30), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
-                            
-                # Vẽ các chỉ số metrics thực tế (Màu Cyan / Vàng)
-                info_text = f"AR: {metrics['AR']:.1f} | Vel: {metrics['Vel']:.1f}/s"
-                if metrics['Angle'] is not None:
-                    info_text += f" | Ang: {metrics['Angle']:.0f}"
-                cv2.putText(annotated_frame, info_text, (x1, y1 - 10), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
+                # Nhãn trạng thái (Normal/Fall)
+                draw_text_with_bg(annotated_frame, label, (x1, y1 - 85), 
+                                  scale=1.2, color=color, thickness=3)
 
-        # Vẽ thông số FPS lên góc màn hình
+                # Dòng thông tin tư thế (Posture)
+                info_text = f"{metrics.get('Posture', '??')} (Base: {metrics.get('Base', '??')})"
+                draw_text_with_bg(annotated_frame, info_text, (x1, y1 - 50), 
+                                  scale=1, color=(255, 255, 0), thickness=2)
+
+                # Dòng chi tiết vận tốc và góc
+                detail_text = f"Vel: {metrics.get('Vel', 0):.1f} SL/s | Ang: {metrics.get('Angle', 0):.0f}"
+                draw_text_with_bg(annotated_frame, detail_text, (x1, y1 - 10), 
+                                  scale=1, color=(0, 255, 255), thickness=2)
+                
+                # --- DEBUG INFO ---
+                debug_y = y2 + 25
+                if metrics.get("Drop"):
+                    draw_text_with_bg(annotated_frame, "DROP CAPTURED!", (x1, debug_y), 
+                                      scale=0.6, color=(0, 165, 255), thickness=2)
+                    debug_y += 25
+                
+                lying_sec = metrics.get("LyingSec", 0)
+                if lying_sec > 0:
+                    draw_text_with_bg(annotated_frame, f"Lying: {lying_sec:.1f}s", (x1, debug_y), 
+                                      scale=0.6, color=(255, 255, 255), thickness=2)
+
         cv2.putText(annotated_frame, f"FPS: {fps:.1f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
         
-        # Hiển thị frame
         cv2.imshow("Real-time Fall Detection (YOLOv8-Pose)", annotated_frame)
         
-        # Gửi frame ảnh qua Socket.io để hiển thị trên web
+        # Đẩy frame vào Thread Socket.IO (không làm tụt FPS của YOLO)
         frame_count += 1
-        if sio.connected and frame_count % 3 == 0:  # Gửi khoảng 10 fps (nếu cam 30fps)
-            try:
-                # Resize ảnh xuống 640x480 để giảm băng thông
-                small_frame = cv2.resize(annotated_frame, (640, 480))
-                # Encode sang JPEG với chất lượng 70%
-                ret_enc, buffer = cv2.imencode('.jpg', small_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
-                if ret_enc:
-                    b64_str = base64.b64encode(buffer).decode('utf-8')
-                    sio.emit('video_frame', {'frame': b64_str})
-            except Exception as e:
-                pass
+        if frame_count % 3 == 0:
+            socket_stream.send_frame(annotated_frame)
         
-        # Nhấn 'q' để thoát
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-    # Giải phóng camera và cửa sổ
-    cap.release()
+    # Dọn dẹp tài nguyên
+    cam_stream.release()
+    socket_stream.stop()
     cv2.destroyAllWindows()
     if sio.connected:
         sio.disconnect()

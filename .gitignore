@@ -35,3 +35,12 @@ BACKEND_DEPLOYMENT_GUIDE.md
 
 # Camera AI
 */**.pt
+
+# python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyi
+.venv
+
