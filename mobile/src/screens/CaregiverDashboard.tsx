@@ -23,6 +23,8 @@ export const CaregiverDashboard = () => {
   const [statusText, setStatusText] = useState('Đang hoạt động bình thường');
   const [sosAlertData, setSosAlertData] = useState<any>(null);
   const [liveFrame, setLiveFrame] = useState<string | null>(null);
+  const [prevLiveFrame, setPrevLiveFrame] = useState<string | null>(null);
+  const frameRef = useRef<string | null>(null);
   const frameTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const flashAnim = useRef(new Animated.Value(0)).current;
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -169,12 +171,16 @@ export const CaregiverDashboard = () => {
         socket.off('video_frame');
         socket.on('video_frame', (data: any) => {
           if (data && data.frame) {
+            setPrevLiveFrame(frameRef.current);
+            frameRef.current = data.frame;
             setLiveFrame(data.frame);
             if (frameTimeoutRef.current) {
               clearTimeout(frameTimeoutRef.current);
             }
             frameTimeoutRef.current = setTimeout(() => {
               setLiveFrame(null);
+              setPrevLiveFrame(null);
+              frameRef.current = null;
             }, 3000);
           }
         });
@@ -336,11 +342,15 @@ export const CaregiverDashboard = () => {
         {CAMERAS.map((cam, idx) => {
           const isLiveCam = idx === 0 && liveFrame;
           const imageUri = isLiveCam ? `data:image/jpeg;base64,${liveFrame}` : cam.image;
+          const prevImageUri = isLiveCam && prevLiveFrame ? `data:image/jpeg;base64,${prevLiveFrame}` : null;
           
           return (
             <View key={idx} style={styles.cameraWrapper}>
-              <Image source={{ uri: imageUri }} style={styles.cameraImg} fadeDuration={0} />
-              <View style={styles.cameraOverlay}>
+              {prevImageUri && (
+                <Image source={{ uri: prevImageUri }} style={[styles.cameraImg, { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 0 }]} fadeDuration={0} />
+              )}
+              <Image source={{ uri: imageUri }} style={[styles.cameraImg, { zIndex: 1 }]} fadeDuration={0} />
+              <View style={[styles.cameraOverlay, { zIndex: 2 }]}>
                 <View style={styles.aiTag}>
                   <MaterialIcons name={isLiveCam ? "auto-awesome" : "videocam-off"} size={14} color={isLiveCam ? theme.colors.success : theme.colors.error} />
                   <Text style={[styles.aiTagText, !isLiveCam && { color: theme.colors.error }]}>
@@ -421,13 +431,13 @@ const styles = StyleSheet.create({
   progressPercent: { fontSize: 18, fontWeight: 'bold', color: theme.colors.primary },
   liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#FFEBEB', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
   liveText: { fontSize: 10, fontWeight: 'bold', color: theme.colors.primary },
-  cameraWrapper: { height: 200, borderRadius: theme.borderRadius.l, overflow: 'hidden', marginBottom: theme.spacing.m, position: 'relative' },
+  cameraWrapper: { aspectRatio: 4 / 3, width: '100%', borderRadius: theme.borderRadius.l, overflow: 'hidden', marginBottom: theme.spacing.m, position: 'relative' },
   cameraImg: { width: '100%', height: '100%' },
   cameraOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: theme.spacing.m, backgroundColor: 'rgba(0,0,0,0.3)' },
   aiTag: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.9)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginBottom: 4 },
   aiTagText: { fontSize: 10, fontWeight: 'bold', color: theme.colors.success },
   cameraLabel: { fontSize: 16, fontWeight: 'bold', color: theme.colors.text.inverse },
-  expandBtn: { position: 'absolute', top: 12, right: 12, backgroundColor: 'rgba(0,0,0,0.4)', padding: 6, borderRadius: 8 },
+  expandBtn: { position: 'absolute', top: 12, right: 12, backgroundColor: 'rgba(0,0,0,0.4)', padding: 6, borderRadius: 8, zIndex: 3 },
   sosOverlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 9999,

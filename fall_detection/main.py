@@ -286,10 +286,9 @@ def main():
         
         cv2.imshow("Real-time Fall Detection (YOLOv8-Pose)", annotated_frame)
         
-        # Đẩy frame vào Thread Socket.IO (không làm tụt FPS của YOLO)
+        # Đẩy frame liên tục vào Thread Socket.IO để hiển thị mượt mà hơn
         frame_count += 1
-        if frame_count % 3 == 0:
-            socket_stream.send_frame(annotated_frame)
+        socket_stream.send_frame(annotated_frame)
         
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
